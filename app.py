@@ -44,14 +44,54 @@ fig.update_layout(
     title="Countermovement Jump Radar Profile"
 )
 
+# Card styling
+CARD_STYLE = {
+    "backgroundColor": "#e2efe2",
+    "borderRadius": "12px",
+    "padding": "16px",
+    "boxShadow": "0 4px 10px rgba(0,0,0,0.08)",
+}
+
 # Dash app
 app = Dash(__name__)
 
 app.layout = html.Div(
-    style={"width": "700px", "margin": "auto"},
+    className="app-container",
+    
+    # Main container style
+    style={
+        "display": "grid",
+        "gridTemplateColumns": "280px 1fr 1fr",
+        "gridTemplateRows": "auto auto auto 1fr",
+        "gridTemplateAreas": """
+            'profile radar_self radar_team'
+            'profile movement_a movement_b'
+            'profile injury comparison'
+            'profile notes notes'
+        """,
+        "gap": "16px",
+        "padding": "16px",
+        "height": "100vh",
+        "boxSizing": "border-box",
+    },
     children=[
-        html.H1("Aegis Performance"),
-        dcc.Graph(figure=fig)
+        # LEFT COLUMN
+        html.Div("Athlete Profile", style={**CARD_STYLE, "gridArea": "profile"}, className="card"),
+
+        # TOP ROW
+        html.Div("Radar: Athlete", style={**CARD_STYLE, "gridArea": "radar_self"}, className="card"),
+        html.Div("Radar: Team", style={**CARD_STYLE, "gridArea": "radar_team"}, className="card"),
+
+        # MIDDLE ROW
+        html.Div("Movement Analysis A", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
+        html.Div("Movement Analysis B", style={**CARD_STYLE, "gridArea": "movement_b"}, className="card"),
+
+        # LOWER ROW
+        html.Div("Injury Risk / Asymmetry", style={**CARD_STYLE, "gridArea": "injury"}, className="card"),
+        html.Div("Comparison / Percentiles", style={**CARD_STYLE, "gridArea": "comparison"}, className="card"),
+
+        # FOOTER
+        html.Div("Strategy / Notes", style={**CARD_STYLE, "gridArea": "notes"}, className="card"),
     ]
 )
 
