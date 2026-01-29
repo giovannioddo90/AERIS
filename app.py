@@ -2,6 +2,9 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, dcc, html
 
+#====================== Athlete Profile ===================================
+
+# ===================== Team Radar ========================================
 # Load radar data
 df_radar = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
 
@@ -58,6 +61,7 @@ fig.update_layout(
     showlegend=True,
     title="Athlete Vs Team"
 )
+#============================================================================================================
 
 # Card styling
 CARD_STYLE = {
@@ -80,8 +84,8 @@ app.layout = html.Div(
         "gridTemplateRows": "auto auto auto 1fr",
         "gridTemplateAreas": """
             'profile radar_self radar_team'
-            'profile movement_a movement_b'
-            'profile injury comparison'
+            'profile movement_a injury'
+            'profile placeholder comparison'
             'profile notes notes'
         """,
         "gap": "16px",
@@ -92,7 +96,24 @@ app.layout = html.Div(
 
     children = [
         # LEFT COLUMN
-        html.Div("Athlete Profile", style={**CARD_STYLE, "gridArea": "profile"}, className="card"),
+        html.Div(style={**CARD_STYLE, "gridArea": "profile"}, className="card",
+                children = [
+                    html.H3("Athlete Profile"), 
+                    html.P("Name"),
+                    html.P("Age"),
+                    html.P("Height"),
+                    html.P("Weight"),
+                    html.Hr(),
+                    html.P("Sport"),
+                    html.P("Position"),
+                    html.P("Team"),
+                    html.P("Year"),
+                    html.Hr(),
+                    html.P("Test Date: "),
+                    html.P("Test Type: "),
+                    html.P("Comparison Group")
+                ] 
+            ),
 
         # TOP ROW
         html.Div("Radar: Athlete", style={**CARD_STYLE, "gridArea": "radar_self"}, className="card"),
@@ -109,11 +130,11 @@ app.layout = html.Div(
                 ),
 
         # MIDDLE ROW
-        html.Div("Movement Analysis A", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
-        html.Div("Movement Analysis B", style={**CARD_STYLE, "gridArea": "movement_b"}, className="card"),
+        html.Div("Movement Analysis", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
+        html.Div("Injury / Asymmetry", style={**CARD_STYLE, "gridArea": "injury"}, className="card"),
 
         # LOWER ROW
-        html.Div("Injury Risk / Asymmetry", style={**CARD_STYLE, "gridArea": "injury"}, className="card"),
+        html.Div("Placeholder", style={**CARD_STYLE, "gridArea": "placeholder"}, className="card"),
         html.Div("Comparison / Percentiles", style={**CARD_STYLE, "gridArea": "comparison"}, className="card"),
 
         # FOOTER
