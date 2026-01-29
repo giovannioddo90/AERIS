@@ -98,7 +98,7 @@ app.layout = html.Div(
         # LEFT COLUMN
         html.Div(style={**CARD_STYLE, "gridArea": "profile"}, className="card",
                 children = [
-                    html.H3("Athlete Profile"), 
+                    html.H2("Athlete Profile"), 
                     html.P("Name"),
                     html.P("Age"),
                     html.P("Height"),
@@ -116,18 +116,18 @@ app.layout = html.Div(
             ),
 
         # TOP ROW
-        html.Div("Radar: Athlete", style={**CARD_STYLE, "gridArea": "radar_self"}, className="card"),
-
-                
-        html.Div(style={**CARD_STYLE, "gridArea": "radar_team"}, className="card",
-                 children = [
-                    html.H3("Radar: Athlete"),
-                    dcc.Graph(
-                    id='radar-chart',
-                    figure=fig,
+        html.Div(style={**CARD_STYLE, "gridArea": "radar_self"}, className="card",
+                    children = [
+                        html.H2("Radar: Team", style={"text-align": "center"}),
+                        dcc.Graph(
+                        id='radar-chart',
+                        figure=fig,
                         ) 
                     ]
                 ),
+
+                
+        html.Div("Self vs Team", style={**CARD_STYLE, "gridArea": "radar_team", "object-fit": "contain"}, className="card"),
 
         # MIDDLE ROW
         html.Div("Movement Analysis", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
