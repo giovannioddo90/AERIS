@@ -3,34 +3,49 @@ import plotly.graph_objects as go
 from dash import Dash, dcc, html
 
 # Load radar data
-df = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
+df_radar = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
 
 # Pick one athlete + date for now
-athlete_name = df["Name"].iloc[1]
-date = df["Date"].iloc[1]
+athlete_name = df_radar["Name"].iloc[1]
+date = df_radar["Date"].iloc[1]
 
-row = df.iloc[1]
+row = df_radar.iloc[1]
 
 # Radar metrics (explicit = safer)
 metrics = [
-    "Jump Height",
-    "Peak Velocity",
-    "mRSI",
-    "Jump Momentum",
-    "Peak Relative Propulsive Power",
-    "Peak Relative Braking Power"
+    "Jump Height Scaled",
+    "Peak Velocity Scaled",
+    "mRSI Scaled",
+    "Jump Momentum Scaled",
+    "Peak Relative Propulsive Power Scaled",
+    "Peak Relative Braking Power Scaled"
 ]
 
 values = [row[m] for m in metrics]
 
 # Radar chart
 fig = go.Figure()
-
+metrics_closed = metrics + [metrics[0]]
+# Athelete values
 fig.add_trace(go.Scatterpolar(
     r=values,
-    theta=metrics,
+    theta=metrics_closed,
     fill='toself',
     name=f"{athlete_name} ({date})"
+))
+
+# Team average 
+fig.add_trace(go.Scatterpolar(
+    r=[50 for _ in range(7)],
+    theta=metrics_closed,
+    
+    name=f"Team Avg",
+    line=dict(
+        color="rgba(220, 20, 60, 1.0)",
+        width=2,
+        dash="dot"
+    ),
+    fill=None
 ))
 
 fig.update_layout(
@@ -41,7 +56,7 @@ fig.update_layout(
         )
     ),
     showlegend=True,
-    title="Countermovement Jump Radar Profile"
+    title="Athlete Vs Team"
 )
 
 # Card styling
@@ -74,13 +89,24 @@ app.layout = html.Div(
         "height": "100vh",
         "boxSizing": "border-box",
     },
-    children=[
+
+    children = [
         # LEFT COLUMN
         html.Div("Athlete Profile", style={**CARD_STYLE, "gridArea": "profile"}, className="card"),
 
         # TOP ROW
         html.Div("Radar: Athlete", style={**CARD_STYLE, "gridArea": "radar_self"}, className="card"),
-        html.Div("Radar: Team", style={**CARD_STYLE, "gridArea": "radar_team"}, className="card"),
+
+                
+        html.Div(style={**CARD_STYLE, "gridArea": "radar_team"}, className="card",
+                 children = [
+                    html.H3("Radar: Athlete"),
+                    dcc.Graph(
+                    id='radar-chart',
+                    figure=fig,
+                        ) 
+                    ]
+                ),
 
         # MIDDLE ROW
         html.Div("Movement Analysis A", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
@@ -96,4 +122,5 @@ app.layout = html.Div(
 )
 
 if __name__ == "__main__":
+    # Set app.run(host='0.0.0.0', port=8050, debug=False) to access on other clients in the network
     app.run(debug=True)
