@@ -3,6 +3,17 @@ import plotly.graph_objects as go
 from dash import Dash, dcc, html
 
 #====================== Athlete Profile ===================================
+# Load raw data
+df_raw_data = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
+
+# Sort and store unique names from the name col
+athlete_options = sorted(df_raw_data["Name"].dropna().unique())
+
+# Store unique dates from data source
+date_options = df_raw_data["Date"].dropna().unique()
+
+
+
 
 # ===================== Team Radar ========================================
 # Load radar data
@@ -28,7 +39,10 @@ values = [row[m] for m in metrics]
 
 # Radar chart
 fig = go.Figure()
+
+# Connects all dashed lines for the team average values
 metrics_closed = metrics + [metrics[0]]
+
 # Athelete values
 fig.add_trace(go.Scatterpolar(
     r=values,
@@ -48,6 +62,7 @@ fig.add_trace(go.Scatterpolar(
         width=2,
         dash="dot"
     ),
+    opacity=0.3,
     fill=None
 ))
 
@@ -61,6 +76,11 @@ fig.update_layout(
     showlegend=True,
     title="Athlete Vs Team"
 )
+#============================================================================================================
+
+#====================== Bar Chart vs Self & Team ============================================================
+
+
 #============================================================================================================
 
 # Card styling
@@ -99,7 +119,18 @@ app.layout = html.Div(
         html.Div(style={**CARD_STYLE, "gridArea": "profile"}, className="card",
                 children = [
                     html.H2("Athlete Profile"), 
+                    
                     html.P("Name"),
+                    dcc.Dropdown(
+                        id = "athlete-dropdown",
+                        options = [
+                            {"label": name, "value": name}
+                            for name in athlete_options
+                            ],
+                            clearable = False,
+                            placeholder = "Select Athlete"
+                            ), 
+
                     html.P("Age"),
                     html.P("Height"),
                     html.P("Weight"),
@@ -109,7 +140,18 @@ app.layout = html.Div(
                     html.P("Team"),
                     html.P("Year"),
                     html.Hr(),
-                    html.P("Test Date: "),
+                    
+                    html.P("Test Date"),
+                    # TODO write the callback and function to only show dates from the selected athlete
+                    dcc.Dropdown(
+                        id="date-dropdown",
+                        options = [
+                            {"label": date, "value": date}
+                            for date in date_options
+                        ],
+                        placeholder = "Select Date"
+                    ),
+
                     html.P("Test Type: "),
                     html.P("Comparison Group")
                 ] 
