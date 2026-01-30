@@ -12,8 +12,11 @@ athlete_options = sorted(df_raw_data["Name"].dropna().unique())
 # Store unique dates from data source
 date_options = df_raw_data["Date"].dropna().unique()
 
+# Test Type options
+test_type_options = ["CMJ-RE", "CMJ", "ISO", "MAXED"]
 
-
+# Comparison group options
+comparison_group_options = ["Self", "Team", "Other"]
 
 # ===================== Team Radar ========================================
 # Load radar data
@@ -25,7 +28,7 @@ date = df_radar["Date"].iloc[1]
 
 row = df_radar.iloc[1]
 
-# Radar metrics (explicit = safer)
+# Radar metrics needed 
 metrics = [
     "Jump Height Scaled",
     "Peak Velocity Scaled",
@@ -35,26 +38,42 @@ metrics = [
     "Peak Relative Braking Power Scaled"
 ]
 
+# Metric labels to change value titles in radar chart
+metric_label_map = {
+    "Jump Height Scaled": "Jump Height",
+    "Peak Velocity Scaled": "Speed",
+    "mRSI Scaled": "Athletic Capacity",
+    "Jump Momentum Scaled": "Acceleration",
+    "Peak Relative Propulsive Power Scaled": "Push-off Power",
+    "Peak Relative Braking Power Scaled": "Loading Power"
+}
+
+
+# Get values for each metric in data source
 values = [row[m] for m in metrics]
 
 # Radar chart
 fig = go.Figure()
 
-# Connects all dashed lines for the team average values
+# Display layman tiles on radar chart
+metrics_display = [metric_label_map.get(m, m) for m in metrics]
+
+# Connects all dashed lines for the athlete and team average values
 metrics_closed = metrics + [metrics[0]]
+values_closed = values + [values[0]]
 
 # Athelete values
 fig.add_trace(go.Scatterpolar(
-    r=values,
-    theta=metrics_closed,
+    r=values_closed,
+    theta=metrics_display,
     fill='toself',
     name=f"{athlete_name} ({date})"
 ))
 
 # Team average 
 fig.add_trace(go.Scatterpolar(
-    r=[50 for _ in range(7)],
-    theta=metrics_closed,
+    r=[50 for _ in range(6)],
+    theta=metrics_display,
     
     name=f"Team Avg",
     line=dict(
@@ -73,8 +92,22 @@ fig.update_layout(
             range=[0, 100]
         )
     ),
+
+    legend=dict(
+        orientation="h",
+        x=0.5,
+        y=-0.2,
+        xanchor="center",
+        yanchor="top"
+    ),
     showlegend=True,
-    title="Athlete Vs Team"
+
+    
+    title = dict(
+        text = "Athlete Vs Team",
+        x = 0.5,
+        xanchor = "center"
+    )
 )
 #============================================================================================================
 
@@ -131,20 +164,20 @@ app.layout = html.Div(
                             placeholder = "Select Athlete"
                             ), 
 
-                    html.P("Age"),
-                    html.P("Height"),
-                    html.P("Weight"),
+                    html.P("Age: 17"),
+                    html.P("Height: 5' 10''"),
+                    html.P("Weight: 150 lbs"),
                     html.Hr(),
-                    html.P("Sport"),
-                    html.P("Position"),
-                    html.P("Team"),
-                    html.P("Year"),
+                    html.P("Sport: Basketball"),
+                    html.P("Position: Guard"),
+                    html.P("Team: PCHS"),
+                    html.P("Year: Sophomore"),
                     html.Hr(),
                     
                     html.P("Test Date"),
                     # TODO write the callback and function to only show dates from the selected athlete
                     dcc.Dropdown(
-                        id="date-dropdown",
+                        id = "date-dropdown",
                         options = [
                             {"label": date, "value": date}
                             for date in date_options
@@ -153,7 +186,22 @@ app.layout = html.Div(
                     ),
 
                     html.P("Test Type: "),
-                    html.P("Comparison Group")
+                    dcc.Dropdown(
+                        id = "test-type-dropdown",
+                        options = [
+                            {"label": test, "value": test}
+                            for test in test_type_options
+                        ],
+                        placeholder = "Select test type"
+                    ),
+                    html.P("Comparison Group"),
+                    dcc.Dropdown(
+                        id = "comparison-group-dropdown",
+                        options = [
+                            {"label": group, "value": group}
+                            for group in comparison_group_options
+                        ]
+                    )
                 ] 
             ),
 
