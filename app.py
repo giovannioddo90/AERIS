@@ -113,6 +113,112 @@ fig.update_layout(
 
 #====================== Bar Chart vs Self & Team ============================================================
 
+# --- Current session values (same row used for the radar) ---
+current_values = [row[m] for m in metrics]
+
+# --- Athlete historical average: mean of all rows for this athlete across all dates ---
+athlete_history = df_radar[df_radar["Name"] == athlete_name]
+avg_values = [athlete_history[m].mean() for m in metrics]
+
+# --- Friendly labels reused from the radar ---
+bar_labels = [metric_label_map.get(m, m) for m in metrics]
+
+# --- Build the grouped bar figure ---
+fig_bar = go.Figure()
+
+# Current session bars
+fig_bar.add_trace(go.Bar(
+    name="Current",
+    x=bar_labels,
+    y=current_values,
+    marker_color="#4a90d9",          # solid blue
+    marker_line=dict(color="#2c5f8a", width=1.2),
+    width=0.35,
+    textposition="outside",
+    text=[f"{v:.1f}" for v in current_values],
+    textfont=dict(size=11, color="#2c5f8a"),
+))
+
+# Athlete average bars
+fig_bar.add_trace(go.Bar(
+    name="Avg",
+    x=bar_labels,
+    y=avg_values,
+    marker_color="#7ec67e",          # solid green
+    marker_line=dict(color="#4a8f4a", width=1.2),
+    width=0.35,
+    textposition="outside",
+    text=[f"{v:.1f}" for v in avg_values],
+    textfont=dict(size=11, color="#4a8f4a"),
+))
+
+# --- Horizontal reference line at 50 (group / population average) ---
+fig_bar.add_shape(
+    type="line",
+    x0=-0.5,
+    x1=len(bar_labels) - 0.5,   # spans the full x-axis range
+    y0=50,
+    y1=50,
+    line=dict(
+        color="rgba(220, 20, 60, 0.7)",   # matches radar team-avg color
+        width=2,
+        dash="dash",
+    ),
+)
+
+# Invisible scatter trace so the 50-line appears in the legend
+fig_bar.add_trace(go.Scatter(
+    x=[None],
+    y=[None],
+    mode="lines",
+    name="Group Avg (50)",
+    line=dict(
+        color="rgba(220, 20, 60, 0.7)",
+        width=2,
+        dash="dash",
+    ),
+    showlegend=True,
+))
+
+fig_bar.update_layout(
+    barmode="group",
+    bargroupgap=0.1,       # gap between the two bars in each cluster
+    bargap=0.25,           # gap between clusters
+
+    yaxis=dict(
+        range=[0, 115],    # extra headroom so "outside" text labels don't clip
+        title=dict(text="Scaled Score (0–100)", font=dict(size=12)),
+        tickvals=[0, 25, 50, 75, 100],
+        ticktext=["0", "25", "50", "75", "100"],
+        gridcolor="rgba(180,180,180,0.3)",
+        zeroline=False,
+    ),
+    xaxis=dict(
+        title=None,
+        tickfont=dict(size=11),
+    ),
+
+    legend=dict(
+        orientation="h",
+        x=0.5,
+        y=-0.18,
+        xanchor="center",
+        yanchor="top",
+        font=dict(size=11),
+    ),
+    showlegend=True,
+
+    title=dict(
+        text="Self vs Team",
+        x=0.5,
+        xanchor="center",
+        font=dict(size=15),
+    ),
+
+    margin=dict(t=45, b=60, l=45, r=20),
+    plot_bgcolor="rgba(0,0,0,0)",   # transparent plot background
+    paper_bgcolor="rgba(0,0,0,0)",  # transparent card background
+)
 
 #============================================================================================================
 
@@ -217,7 +323,14 @@ app.layout = html.Div(
                 ),
 
                 
-        html.Div("Self vs Team", style={**CARD_STYLE, "gridArea": "radar_team", "object-fit": "contain"}, className="card"),
+        html.Div(style={**CARD_STYLE, "gridArea": "radar_team", "object-fit": "contain"}, className="card",
+                children = [
+                    html.H2("Self vs Team", style = {"text-align": "center"}),
+                    dcc.Graph(
+                        id = "bar-chart",
+                        figure = fig_bar,
+                    )
+                ]),
 
         # MIDDLE ROW
         html.Div("Movement Analysis", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
