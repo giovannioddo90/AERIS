@@ -2,9 +2,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, dcc, html
 
-#====================== Athlete Profile ===================================
+# ====================== Athlete Profile ===================================
 # Load raw data
-df_raw_data = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
+df_raw_data = pd.read_csv(
+    "https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+)
 
 # Sort and store unique names from the name col
 athlete_options = sorted(df_raw_data["Name"].dropna().unique())
@@ -20,7 +22,9 @@ comparison_group_options = ["Self", "Team", "Other"]
 
 # ===================== Team Radar ========================================
 # Load radar data
-df_radar = pd.read_csv("https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242")
+df_radar = pd.read_csv(
+    "https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+)
 
 # Pick one athlete + date for now
 athlete_name = df_radar["Name"].iloc[1]
@@ -28,14 +32,14 @@ date = df_radar["Date"].iloc[1]
 
 row = df_radar.iloc[1]
 
-# Radar metrics needed 
+# Radar metrics needed
 metrics = [
     "Jump Height Scaled",
     "Peak Velocity Scaled",
     "mRSI Scaled",
     "Jump Momentum Scaled",
     "Peak Relative Propulsive Power Scaled",
-    "Peak Relative Braking Power Scaled"
+    "Peak Relative Braking Power Scaled",
 ]
 
 # Metric labels to change value titles in radar chart
@@ -45,7 +49,7 @@ metric_label_map = {
     "mRSI Scaled": "Athletic Capacity",
     "Jump Momentum Scaled": "Acceleration",
     "Peak Relative Propulsive Power Scaled": "Push-off Power",
-    "Peak Relative Braking Power Scaled": "Loading Power"
+    "Peak Relative Braking Power Scaled": "Loading Power",
 }
 
 
@@ -63,55 +67,36 @@ metrics_closed = metrics + [metrics[0]]
 values_closed = values + [values[0]]
 
 # Athelete values
-fig.add_trace(go.Scatterpolar(
-    r=values_closed,
-    theta=metrics_display,
-    fill='toself',
-    name=f"{athlete_name} ({date})"
-))
-
-# Team average 
-fig.add_trace(go.Scatterpolar(
-    r=[50 for _ in range(6)],
-    theta=metrics_display,
-    
-    name=f"Team Avg",
-    line=dict(
-        color="rgba(220, 20, 60, 1.0)",
-        width=2,
-        dash="dot"
-    ),
-    opacity=0.3,
-    fill=None
-))
-
-fig.update_layout(
-    polar=dict(
-        radialaxis=dict(
-            visible=True,
-            range=[0, 100]
-        )
-    ),
-
-    legend=dict(
-        orientation="h",
-        x=0.5,
-        y=-0.2,
-        xanchor="center",
-        yanchor="top"
-    ),
-    showlegend=True,
-
-    
-    title = dict(
-        text = "Athlete Vs Team",
-        x = 0.5,
-        xanchor = "center"
+fig.add_trace(
+    go.Scatterpolar(
+        r=values_closed,
+        theta=metrics_display,
+        fill="toself",
+        name=f"{athlete_name} ({date})",
     )
 )
-#============================================================================================================
 
-#====================== Bar Chart vs Self & Team ============================================================
+# Team average
+fig.add_trace(
+    go.Scatterpolar(
+        r=[50 for _ in range(6)],
+        theta=metrics_display,
+        name=f"Team Avg",
+        line=dict(color="rgba(220, 20, 60, 1.0)", width=2, dash="dot"),
+        opacity=0.3,
+        fill=None,
+    )
+)
+
+fig.update_layout(
+    polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+    legend=dict(orientation="h", x=0.5, y=-0.2, xanchor="center", yanchor="top"),
+    showlegend=True,
+    title=dict(text="Athlete Vs Team", x=0.5, xanchor="center"),
+)
+# ============================================================================================================
+
+# ====================== Bar Chart vs Self & Team ============================================================
 
 # --- Current session values (same row used for the radar) ---
 current_values = [row[m] for m in metrics]
@@ -127,66 +112,71 @@ bar_labels = [metric_label_map.get(m, m) for m in metrics]
 fig_bar = go.Figure()
 
 # Current session bars
-fig_bar.add_trace(go.Bar(
-    name="Current",
-    x=bar_labels,
-    y=current_values,
-    marker_color="#4a90d9",          # solid blue
-    marker_line=dict(color="#2c5f8a", width=1.2),
-    width=0.35,
-    textposition="outside",
-    text=[f"{v:.1f}" for v in current_values],
-    textfont=dict(size=11, color="#2c5f8a"),
-))
+fig_bar.add_trace(
+    go.Bar(
+        name="Current",
+        x=bar_labels,
+        y=current_values,
+        marker_color="#4a90d9",  # solid blue
+        marker_line=dict(color="#2c5f8a", width=1.2),
+        width=0.35,
+        textposition="outside",
+        text=[f"{v:.1f}" for v in current_values],
+        textfont=dict(size=11, color="#2c5f8a"),
+    )
+)
 
 # Athlete average bars
-fig_bar.add_trace(go.Bar(
-    name="Avg",
-    x=bar_labels,
-    y=avg_values,
-    marker_color="#7ec67e",          # solid green
-    marker_line=dict(color="#4a8f4a", width=1.2),
-    width=0.35,
-    textposition="outside",
-    text=[f"{v:.1f}" for v in avg_values],
-    textfont=dict(size=11, color="#4a8f4a"),
-))
+fig_bar.add_trace(
+    go.Bar(
+        name="Avg",
+        x=bar_labels,
+        y=avg_values,
+        marker_color="#7ec67e",  # solid green
+        marker_line=dict(color="#4a8f4a", width=1.2),
+        width=0.35,
+        textposition="outside",
+        text=[f"{v:.1f}" for v in avg_values],
+        textfont=dict(size=11, color="#4a8f4a"),
+    )
+)
 
 # --- Horizontal reference line at 50 (group / population average) ---
 fig_bar.add_shape(
     type="line",
     x0=-0.5,
-    x1=len(bar_labels) - 0.5,   # spans the full x-axis range
+    x1=len(bar_labels) - 0.5,  # spans the full x-axis range
     y0=50,
     y1=50,
     line=dict(
-        color="rgba(220, 20, 60, 0.7)",   # matches radar team-avg color
+        color="rgba(220, 20, 60, 0.7)",  # matches radar team-avg color
         width=2,
         dash="dash",
     ),
 )
 
 # Invisible scatter trace so the 50-line appears in the legend
-fig_bar.add_trace(go.Scatter(
-    x=[None],
-    y=[None],
-    mode="lines",
-    name="Group Avg (50)",
-    line=dict(
-        color="rgba(220, 20, 60, 0.7)",
-        width=2,
-        dash="dash",
-    ),
-    showlegend=True,
-))
+fig_bar.add_trace(
+    go.Scatter(
+        x=[None],
+        y=[None],
+        mode="lines",
+        name="Group Avg (50)",
+        line=dict(
+            color="rgba(220, 20, 60, 0.7)",
+            width=2,
+            dash="dash",
+        ),
+        showlegend=True,
+    )
+)
 
 fig_bar.update_layout(
     barmode="group",
-    bargroupgap=0.1,       # gap between the two bars in each cluster
-    bargap=0.25,           # gap between clusters
-
+    bargroupgap=0.1,  # gap between the two bars in each cluster
+    bargap=0.25,  # gap between clusters
     yaxis=dict(
-        range=[0, 115],    # extra headroom so "outside" text labels don't clip
+        range=[0, 115],  # extra headroom so "outside" text labels don't clip
         title=dict(text="Scaled Score (0–100)", font=dict(size=12)),
         tickvals=[0, 25, 50, 75, 100],
         ticktext=["0", "25", "50", "75", "100"],
@@ -197,7 +187,6 @@ fig_bar.update_layout(
         title=None,
         tickfont=dict(size=11),
     ),
-
     legend=dict(
         orientation="h",
         x=0.5,
@@ -207,20 +196,18 @@ fig_bar.update_layout(
         font=dict(size=11),
     ),
     showlegend=True,
-
     title=dict(
         text="Self vs Team",
         x=0.5,
         xanchor="center",
         font=dict(size=15),
     ),
-
     margin=dict(t=45, b=60, l=45, r=20),
-    plot_bgcolor="rgba(0,0,0,0)",   # transparent plot background
+    plot_bgcolor="rgba(0,0,0,0)",  # transparent plot background
     paper_bgcolor="rgba(0,0,0,0)",  # transparent card background
 )
 
-#============================================================================================================
+# ============================================================================================================
 
 # Card styling
 CARD_STYLE = {
@@ -235,12 +222,11 @@ app = Dash(__name__)
 
 app.layout = html.Div(
     className="app-container",
-    
     # Main container style
     style={
         "display": "grid",
         "gridTemplateColumns": "280px 1fr 1fr",
-        "gridTemplateRows": "auto auto auto 1fr",
+        "gridTemplateRows": "auto auto auto auto",
         "gridTemplateAreas": """
             'profile radar_self radar_team'
             'profile movement_a injury'
@@ -252,97 +238,112 @@ app.layout = html.Div(
         "height": "100vh",
         "boxSizing": "border-box",
     },
-
-    children = [
+    children=[
         # LEFT COLUMN
-        html.Div(style={**CARD_STYLE, "gridArea": "profile"}, className="card",
-                children = [
-                    html.H2("Athlete Profile"), 
-                    
-                    html.P("Name"),
-                    dcc.Dropdown(
-                        id = "athlete-dropdown",
-                        options = [
-                            {"label": name, "value": name}
-                            for name in athlete_options
-                            ],
-                            clearable = False,
-                            placeholder = "Select Athlete"
-                            ), 
-
-                    html.P("Age: 17"),
-                    html.P("Height: 5' 10''"),
-                    html.P("Weight: 150 lbs"),
-                    html.Hr(),
-                    html.P("Sport: Basketball"),
-                    html.P("Position: Guard"),
-                    html.P("Team: PCHS"),
-                    html.P("Year: Sophomore"),
-                    html.Hr(),
-                    
-                    html.P("Test Date"),
-                    # TODO write the callback and function to only show dates from the selected athlete
-                    dcc.Dropdown(
-                        id = "date-dropdown",
-                        options = [
-                            {"label": date, "value": date}
-                            for date in date_options
-                        ],
-                        placeholder = "Select Date"
+        html.Div(
+            style={**CARD_STYLE, "gridArea": "profile"},
+            className="card",
+            children=[
+                html.H2("Athlete Profile"),
+                html.Img(
+                    src="assets/Images/Scott-founder.jpg",
+                    style = {"width": "250px"}
                     ),
-
-                    html.P("Test Type: "),
-                    dcc.Dropdown(
-                        id = "test-type-dropdown",
-                        options = [
-                            {"label": test, "value": test}
-                            for test in test_type_options
-                        ],
-                        placeholder = "Select test type"
-                    ),
-                    html.P("Comparison Group"),
-                    dcc.Dropdown(
-                        id = "comparison-group-dropdown",
-                        options = [
-                            {"label": group, "value": group}
-                            for group in comparison_group_options
-                        ]
-                    )
-                ] 
-            ),
-
-        # TOP ROW
-        html.Div(style={**CARD_STYLE, "gridArea": "radar_self"}, className="card",
-                    children = [
-                        html.H2("Radar: Team", style={"text-align": "center"}),
-                        dcc.Graph(
-                        id='radar-chart',
-                        figure=fig,
-                        ) 
-                    ]
+                html.P("Name"),
+                dcc.Dropdown(
+                    id="athlete-dropdown",
+                    options=[
+                        {"label": name, "value": name} for name in athlete_options
+                    ],
+                    clearable=False,
+                    placeholder="Select Athlete",
                 ),
-
-                
-        html.Div(style={**CARD_STYLE, "gridArea": "radar_team", "object-fit": "contain"}, className="card",
-                children = [
-                    html.H2("Self vs Team", style = {"text-align": "center"}),
-                    dcc.Graph(
-                        id = "bar-chart",
-                        figure = fig_bar,
-                    )
-                ]),
-
+                html.P("Age: 17"),
+                html.P("Height: 5' 10''"),
+                html.P("Weight: 150 lbs"),
+                html.Hr(),
+                html.P("Sport: Basketball"),
+                html.P("Position: Guard"),
+                html.P("Team: PCHS"),
+                html.P("Year: Sophomore"),
+                html.Hr(),
+                html.P("Test Date"),
+                # TODO write the callback and function to only show dates from the selected athlete
+                dcc.Dropdown(
+                    id="date-dropdown",
+                    options=[{"label": date, "value": date} for date in date_options],
+                    placeholder="Select Date",
+                ),
+                html.P("Test Type: "),
+                dcc.Dropdown(
+                    id="test-type-dropdown",
+                    options=[
+                        {"label": test, "value": test} for test in test_type_options
+                    ],
+                    placeholder="Select test type",
+                ),
+                html.P("Comparison Group"),
+                dcc.Dropdown(
+                    id="comparison-group-dropdown",
+                    options=[
+                        {"label": group, "value": group}
+                        for group in comparison_group_options
+                    ],
+                ),
+            ],
+        ),
+        # TOP ROW
+        html.Div(
+            style={**CARD_STYLE, "gridArea": "radar_self"},
+            className="card",
+            children=[
+                html.H2("Radar: Team", style={"text-align": "center"}),
+                dcc.Graph(
+                    id="radar-chart",
+                    figure=fig,
+                ),
+            ],
+        ),
+        html.Div(
+            style={**CARD_STYLE, "gridArea": "radar_team", "object-fit": "contain"},
+            className="card",
+            children=[
+                html.H2("Self vs Team", style={"text-align": "center"}),
+                dcc.Graph(
+                    id="bar-chart",
+                    figure=fig_bar,
+                ),
+            ],
+        ),
         # MIDDLE ROW
-        html.Div("Movement Analysis", style={**CARD_STYLE, "gridArea": "movement_a"}, className="card"),
-        html.Div("Injury / Asymmetry", style={**CARD_STYLE, "gridArea": "injury"}, className="card"),
-
+        html.Div(
+            "Movement Analysis",
+            style={**CARD_STYLE, "gridArea": "movement_a"},
+            className="card",
+        ),
+        html.Div(
+            "Injury / Asymmetry",
+            style={**CARD_STYLE, "gridArea": "injury"},
+            className="card",
+        ),
         # LOWER ROW
-        html.Div("Placeholder", style={**CARD_STYLE, "gridArea": "placeholder"}, className="card"),
-        html.Div("Comparison / Percentiles", style={**CARD_STYLE, "gridArea": "comparison"}, className="card"),
-
+        html.Div(
+            "Placeholder",
+            style={**CARD_STYLE, "gridArea": "placeholder"},
+            className="card",
+        ),
+        html.Div(
+            "Comparison / Percentiles",
+            style={**CARD_STYLE, "gridArea": "comparison"},
+            className="card",
+        ),
         # FOOTER
-        html.Div("Strategy / Notes", style={**CARD_STYLE, "gridArea": "notes"}, className="card"),
-    ]
+        html.Div(
+            "Strategy / Notes",
+            style={**CARD_STYLE, "gridArea": "notes"},
+            className="card",
+        ),
+    ],
 )
 
 if __name__ == "__main__":
