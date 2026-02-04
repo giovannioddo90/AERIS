@@ -209,6 +209,52 @@ fig_bar.update_layout(
 
 # ============================================================================================================
 
+# ====================== Bar Chart for movement analysis ============================================================
+
+impulse_ratio = 2.35
+impulse_ratio_team_avg = 2.41
+
+metrics = {
+    "Impulse Ratio": impulse_ratio,
+    "Peak Relative Velocity": 1.92,          # m/s
+    "Countermovement Depth": 0.31,            # m
+    "Ground Contact Time": 0.182               # s
+}
+
+# Build the graph
+fig_movement_analysis = go.Figure(
+    data=[
+        go.Bar(
+            name="Impulse Ratio",
+            x=["Impulse Ratio"],
+            y=[impulse_ratio],
+            text=[f"{impulse_ratio:.2f}"],
+            textposition="auto",
+        ),
+        go.Bar(
+            name="Impulse Ratio Team Avg",
+            x=["Impulse Ratio Team Avg"],
+            y=[impulse_ratio_team_avg],
+            text=[f"{impulse_ratio_team_avg:.2f}"],
+            textposition="auto",
+        ),
+    ]
+)
+
+fig_movement_analysis.update_layout(
+    height=350,
+    margin=dict(l=40, r=40, t=40, b=40),
+    yaxis=dict(
+        title="",
+        range=[0, 2.6],
+        gridcolor="lightgray"
+    ),
+    xaxis=dict(title=""),
+    showlegend=False,
+)
+
+# ============================================================================================================
+
 # Card styling
 CARD_STYLE = {
     "backgroundColor": "#e2efe2",
@@ -317,10 +363,24 @@ app.layout = html.Div(
         ),
         # MIDDLE ROW
         html.Div(
-            "Movement Analysis",
             style={**CARD_STYLE, "gridArea": "movement_a"},
             className="card",
+            children=[
+                html.H2("Movement Analysis", style={"test-align": "center"}),
+                dcc.Graph(
+                    id="move-bar-chart",
+                    figure = fig_movement_analysis
+                ),
+
+                html.Section(
+                    children = [
+                    html.P("Loading Speed"),
+                    html.P("Sustained Push-off Power")
+                    ]
+                ),
+            ],
         ),
+
         html.Div(
             "Injury / Asymmetry",
             style={**CARD_STYLE, "gridArea": "injury"},
