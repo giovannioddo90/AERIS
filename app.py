@@ -252,7 +252,76 @@ fig_movement_analysis.update_layout(
     xaxis=dict(title=""),
     showlegend=False,
 )
+# ============================================================================================================
 
+# ====================== Diverging bar chart for injury/asymmetry ============================================================
+
+# Mock data
+avg_to_date = [1, 0, -5]
+baseline = [-5, -2, -10]
+
+# Metric title for bars
+metrics_asymmetry = [
+    "Peak Loading Asymmetry",
+    "Peak Takeoff Asymmetry",
+    "Peak Braking Asymmetry",
+]
+
+# Create graph object
+figure_injury_asymmetry = go.Figure(
+
+    data = [
+        # Baseline bar
+        go.Bar(
+            y = metrics_asymmetry,
+            x = baseline,
+            orientation = "h", # orient horizontally
+            name = "Baseline",
+            marker = dict(opacity = 0.45),
+        ),
+
+        # Avg to date 
+        go.Bar(
+            y = metrics_asymmetry,
+            x = avg_to_date,
+            orientation = "h",
+            name = "Avg to Date",
+            marker_color = "#7ec67e",
+            text = avg_to_date,
+            textposition = "auto",
+        ),
+    ]
+)
+
+figure_injury_asymmetry.update_layout(
+    title = dict(
+        text = "Asymmetry Analysis",
+        x = 0.5,
+        xanchor  = "center"
+    ),
+    barmode = "overlay",
+    height = 350,
+    xaxis = dict(
+        range = [-11, 2],
+        zeroline = True,
+        zerolinewidth = 2,
+        zerolinecolor = "black",
+        tickmode = "linear",
+        tick0 = -10,
+        dtick = 2,
+        gridcolor = "lightgray"
+    ),
+    yaxis = dict(
+        autorange = "reversed"
+    ),
+    legend = dict(
+        orientation = "h",
+        x = 0.5,
+        xanchor = "center",
+        yanchor = "bottom",
+        y = -0.5
+    ),
+)
 # ============================================================================================================
 
 # Card styling
@@ -382,9 +451,16 @@ app.layout = html.Div(
         ),
 
         html.Div(
-            "Injury / Asymmetry",
             style={**CARD_STYLE, "gridArea": "injury"},
             className="card",
+
+            children = [
+                html.H2("Injury / Asymmetry", style={"test-align": "center"}),
+                dcc.Graph(
+                    id = "asymmetry-graph",
+                    figure = figure_injury_asymmetry
+                ),
+            ],
         ),
         # LOWER ROW
         html.Div(
