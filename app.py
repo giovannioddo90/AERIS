@@ -1,11 +1,14 @@
 import pandas as pd
 import plotly.graph_objects as go
+
 from dash import Dash, dcc, html
+from config import df_radar_url, df_raw_data_url
 
 # ====================== Athlete Profile ===================================
 # Load raw data
 df_raw_data = pd.read_csv(
-    "https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+    #"https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+    df_raw_data_url
 )
 
 # Sort and store unique names from the name col
@@ -23,7 +26,8 @@ comparison_group_options = ["Self", "Team", "Other"]
 # ===================== Team Radar ========================================
 # Load radar data
 df_radar = pd.read_csv(
-    "https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+    #"https://docs.google.com/spreadsheets/d/1u2qa2sIZU9izlymRfDG7VtOD6wRt4MvppcwPdyulaE4/export?format=csv&gid=396575242"
+    df_radar_url
 )
 
 # Pick one athlete + date for now
