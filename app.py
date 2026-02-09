@@ -3,12 +3,11 @@ import plotly.graph_objects as go
 
 from dash import Dash, dcc, html
 from config import df_radar_url, df_raw_data_url
+from login import login_layout
 
 # ====================== Athlete Profile ===================================
 # Load raw data
-df_raw_data = pd.read_csv(
-    df_raw_data_url
-)
+df_raw_data = pd.read_csv(df_raw_data_url)
 
 # Sort and store unique names from the name col
 athlete_options = sorted(df_raw_data["Name"].dropna().unique())
@@ -24,9 +23,7 @@ comparison_group_options = ["Self", "Team", "Other"]
 
 # ===================== Team Radar ========================================
 # Load radar data
-df_radar = pd.read_csv(
-    df_radar_url
-)
+df_radar = pd.read_csv(df_radar_url)
 
 # Pick one athlete + date for now
 athlete_name = df_radar["Name"].iloc[1]
@@ -218,9 +215,9 @@ impulse_ratio_team_avg = 2.41
 
 metrics = {
     "Impulse Ratio": impulse_ratio,
-    "Peak Relative Velocity": 1.92,          # m/s
-    "Countermovement Depth": 0.31,            # m
-    "Ground Contact Time": 0.182               # s
+    "Peak Relative Velocity": 1.92,  # m/s
+    "Countermovement Depth": 0.31,  # m
+    "Ground Contact Time": 0.182,  # s
 }
 
 # Build the graph
@@ -246,11 +243,7 @@ fig_movement_analysis = go.Figure(
 fig_movement_analysis.update_layout(
     height=350,
     margin=dict(l=40, r=40, t=40, b=40),
-    yaxis=dict(
-        title="",
-        range=[0, 2.6],
-        gridcolor="lightgray"
-    ),
+    yaxis=dict(title="", range=[0, 2.6], gridcolor="lightgray"),
     xaxis=dict(title=""),
     showlegend=False,
 )
@@ -271,58 +264,44 @@ metrics_asymmetry = [
 
 # Create graph object
 figure_injury_asymmetry = go.Figure(
-
-    data = [
+    data=[
         # Baseline bar
         go.Bar(
-            y = metrics_asymmetry,
-            x = baseline,
-            orientation = "h", # orient horizontally
-            name = "Baseline",
-            marker = dict(opacity = 0.45),
+            y=metrics_asymmetry,
+            x=baseline,
+            orientation="h",  # orient horizontally
+            name="Baseline",
+            marker=dict(opacity=0.45),
         ),
-
-        # Avg to date 
+        # Avg to date
         go.Bar(
-            y = metrics_asymmetry,
-            x = avg_to_date,
-            orientation = "h",
-            name = "Avg to Date",
-            marker_color = "#7ec67e",
-            text = avg_to_date,
-            textposition = "auto",
+            y=metrics_asymmetry,
+            x=avg_to_date,
+            orientation="h",
+            name="Avg to Date",
+            marker_color="#7ec67e",
+            text=avg_to_date,
+            textposition="auto",
         ),
     ]
 )
 
 figure_injury_asymmetry.update_layout(
-    title = dict(
-        text = "Asymmetry Analysis",
-        x = 0.5,
-        xanchor  = "center"
+    title=dict(text="Asymmetry Analysis", x=0.5, xanchor="center"),
+    barmode="overlay",
+    height=350,
+    xaxis=dict(
+        range=[-11, 2],
+        zeroline=True,
+        zerolinewidth=2,
+        zerolinecolor="black",
+        tickmode="linear",
+        tick0=-10,
+        dtick=2,
+        gridcolor="lightgray",
     ),
-    barmode = "overlay",
-    height = 350,
-    xaxis = dict(
-        range = [-11, 2],
-        zeroline = True,
-        zerolinewidth = 2,
-        zerolinecolor = "black",
-        tickmode = "linear",
-        tick0 = -10,
-        dtick = 2,
-        gridcolor = "lightgray"
-    ),
-    yaxis = dict(
-        autorange = "reversed"
-    ),
-    legend = dict(
-        orientation = "h",
-        x = 0.5,
-        xanchor = "center",
-        yanchor = "bottom",
-        y = -0.5
-    ),
+    yaxis=dict(autorange="reversed"),
+    legend=dict(orientation="h", x=0.5, xanchor="center", yanchor="bottom", y=-0.5),
 )
 # ============================================================================================================
 
@@ -363,9 +342,8 @@ app.layout = html.Div(
             children=[
                 html.H2("Athlete Profile"),
                 html.Img(
-                    src="assets/Images/Scott-founder.jpg",
-                    style = {"width": "250px"}
-                    ),
+                    src="assets/Images/Scott-founder.jpg", style={"width": "250px"}
+                ),
                 html.P("Name"),
                 dcc.Dropdown(
                     id="athlete-dropdown",
@@ -438,30 +416,21 @@ app.layout = html.Div(
             className="card",
             children=[
                 html.H2("Movement Analysis", style={"test-align": "center"}),
-                dcc.Graph(
-                    id="move-bar-chart",
-                    figure = fig_movement_analysis
-                ),
-
+                dcc.Graph(id="move-bar-chart", figure=fig_movement_analysis),
                 html.Section(
-                    children = [
-                    html.P("Loading Speed"),
-                    html.P("Sustained Push-off Power")
+                    children=[
+                        html.P("Loading Speed"),
+                        html.P("Sustained Push-off Power"),
                     ]
                 ),
             ],
         ),
-
         html.Div(
             style={**CARD_STYLE, "gridArea": "injury"},
             className="card",
-
-            children = [
+            children=[
                 html.H2("Injury / Asymmetry", style={"test-align": "center"}),
-                dcc.Graph(
-                    id = "asymmetry-graph",
-                    figure = figure_injury_asymmetry
-                ),
+                dcc.Graph(id="asymmetry-graph", figure=figure_injury_asymmetry),
             ],
         ),
         # LOWER ROW
