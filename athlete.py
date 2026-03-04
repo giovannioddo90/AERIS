@@ -1,3 +1,4 @@
+import numpy as np
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, callback, dcc, html
 
@@ -24,9 +25,23 @@ GAUGE_CONFIG = [
 # ====================== Injury Risk Config ===================================
 # (id_suffix, display_title, db_column)
 INJURY_CONFIG = [
-    ("lr-peak-braking", "Peak Braking Force", "lr_peak_braking_force"),
-    ("lr-peak-landing", "Peak Landing Force", "lr_peak_landing_force"),
-    ("lr-peak-propulsive", "Peak Propulsive Force", "lr_peak_propulsive_force"),
+    ("cmj-braking-impulse", "CMJ Braking Impulse", "cmj_lr_braking_impulse_index"),
+    (
+        "cmj-propulsive-impulse",
+        "CMJ Propulsive Impulse",
+        "cmj_lr_propulsive_impulse_index",
+    ),
+    ("peak-landing-force", "Peak Landing Force", "lr_peak_landing_force"),
+    (
+        "rebound-braking-impulse",
+        "Rebound Braking Impulse",
+        "rebound_lr_braking_impulse_index",
+    ),
+    (
+        "rebound-propulsive-impulse",
+        "Rebound Propulsive Impulse",
+        "rebound_lr_propulsive_impulse_index",
+    ),
 ]
 
 # ====================== Bar Graph Config ===================================
@@ -137,30 +152,45 @@ def create_bar_chart(
     athlete_value: float | None,
     athlete_avg: float | None,
     team_avg: float | None,
+    baseline: float | None,
     title: str,
     unit: str,
 ) -> go.Figure:
-    """Create a grouped bar chart with 3 bars: selected test, athlete avg, team avg."""
-    values = [
+    """Create a grouped bar chart with 3 bars and a team avg line overlay."""
+    bar_values = [
         athlete_value if athlete_value is not None else 0,
         athlete_avg if athlete_avg is not None else 0,
-        team_avg if team_avg is not None else 0,
+        baseline if baseline is not None else 0,
     ]
-    labels = ["Selected Test", "Athlete Avg", "Team Avg"]
-    colors = ["#4a90d9", "#7ec67e", "#d9534f"]
+    bar_labels = ["Current Test", "Last 5 Avg", "Baseline"]
+    bar_colors = ["#4a90d9", "#7ec67e", "#f0ad4e"]
+
+    team_avg_val = team_avg if team_avg is not None else 0
 
     fig = go.Figure(
         data=[
             go.Bar(
-                x=labels,
-                y=values,
-                marker_color=colors,
-                text=[f"{v:.2f}" for v in values],
+                x=bar_labels,
+                y=bar_values,
+                marker_color=bar_colors,
+                text=[f"{v:.2f}" for v in bar_values],
                 textposition="inside",
                 insidetextanchor="middle",
                 textfont=dict(size=14, color="white", family="Arial Black"),
             )
         ]
+    )
+
+    # Team avg as a horizontal line spanning the full chart
+    fig.add_hline(
+        y=team_avg_val,
+        line_dash="dash",
+        line_color="#d9534f",
+        line_width=2,
+        annotation_text=f"Team Avg: {team_avg_val:.2f}",
+        annotation_position="top right",
+        annotation_font_size=11,
+        annotation_font_color="#d9534f",
     )
 
     fig.update_layout(
@@ -177,7 +207,7 @@ def create_bar_chart(
     return fig
 
 
-_default_bar = create_bar_chart(0, 0, 0, "—", "")
+_default_bar = create_bar_chart(0, 0, 0, 0, "—", "")
 
 
 # ====================== Diverging Chart Helper Function ===================================
@@ -206,21 +236,32 @@ def create_diverging_chart(
                 x=baseline_vals,
                 orientation="h",
                 name="Baseline",
-                marker=dict(color="#4a90d9", opacity=0.45),
+                marker=dict(color="#f0ad4e", opacity=0.45),
                 text=[f"{v:.2f}" for v in baseline_vals],
                 textposition="auto",
+                textfont=dict(size=14),
             )
         )
-        # Selected test trace (solid, on top)
+        # Selected test trace (solid, on top) — color by severity
+        selected_colors = []
+        for v in selected_vals:
+            abs_v = abs(v)
+            if abs_v < 11:
+                selected_colors.append("#7ec67e")
+            elif abs_v < 25:
+                selected_colors.append("#f5e642")
+            else:
+                selected_colors.append("#d9534f")
         fig.add_trace(
             go.Bar(
                 y=labels,
                 x=selected_vals,
                 orientation="h",
-                name="Selected Test",
-                marker_color="#7ec67e",
+                name="Current Test",
+                marker_color=selected_colors,
                 text=[f"{v:.2f}" for v in selected_vals],
                 textposition="auto",
+                textfont=dict(size=14),
             )
         )
     else:
@@ -231,9 +272,10 @@ def create_diverging_chart(
                 x=baseline_vals,
                 orientation="h",
                 name="Baseline (only test)",
-                marker_color="#4a90d9",
+                marker_color="#f0ad4e",
                 text=[f"{v:.2f}" for v in baseline_vals],
                 textposition="auto",
+                textfont=dict(size=14),
             )
         )
 
@@ -247,7 +289,7 @@ def create_diverging_chart(
     fig.update_layout(
         title=dict(text="Asymmetry Analysis", x=0.5, xanchor="center"),
         barmode="group",
-        height=300,
+        height=450,
         xaxis=dict(
             range=[-x_range, x_range],
             zeroline=True,
@@ -256,7 +298,7 @@ def create_diverging_chart(
             gridcolor="lightgray",
             title="Asymmetry",
         ),
-        yaxis=dict(autorange="reversed"),
+        yaxis=dict(autorange="reversed", tickfont=dict(size=14)),
         legend=dict(
             orientation="h", x=0.5, xanchor="center", yanchor="bottom", y=-0.55
         ),
@@ -268,6 +310,67 @@ def create_diverging_chart(
 
 
 _default_diverging = create_diverging_chart({}, {})
+
+
+# ====================== Trend Chart Helper Function ===================================
+# Combines gauge and bar metrics for the Trends container
+TREND_CONFIG = [
+    (gid, title, col) for gid, title, col in GAUGE_CONFIG
+] + [
+    (bid, title, col) for bid, title, col, _unit in BAR_CONFIG
+]
+
+
+def create_trend_chart(dates, values, title: str) -> go.Figure:
+    """Create a scatter plot with a linear trend line.
+
+    dates: list of datetime.date objects
+    values: list of float metric values
+    """
+    fig = go.Figure()
+
+    # Data points
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=values,
+            mode="lines+markers",
+            name="Value",
+            marker=dict(color="#4a90d9", size=8),
+            line=dict(color="#4a90d9", width=1),
+        )
+    )
+
+    # Linear trend line (needs at least 2 points)
+    if len(dates) >= 2:
+        x_numeric = np.arange(len(dates), dtype=float)
+        y_arr = np.array(values, dtype=float)
+        coeffs = np.polyfit(x_numeric, y_arr, 1)
+        trend_y = np.polyval(coeffs, x_numeric)
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=trend_y.tolist(),
+                mode="lines",
+                name="Trend",
+                line=dict(color="#d9534f", width=2, dash="dash"),
+            )
+        )
+
+    fig.update_layout(
+        title=dict(text=title, x=0.5, xanchor="center", font=dict(size=13)),
+        height=250,
+        margin=dict(l=40, r=20, t=50, b=40),
+        xaxis=dict(tickformat="%m/%d/%Y", tickfont=dict(size=9)),
+        yaxis=dict(gridcolor="lightgray"),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+_default_trend = create_trend_chart([], [], "—")
 
 
 # =============== Startup data ==================================
@@ -287,7 +390,7 @@ GAUGE_CLUSTER_STYLE = {
     "display": "flex",
     "flexWrap": "wrap",
     "justifyContent": "center",
-    "gap": "8px",
+    "gap": "48px",
 }
 
 # Default empty gauge figure (shown before any selection)
@@ -317,9 +420,7 @@ def serve_layout():
                 className="card",
                 children=[
                     html.H2("Athlete Profile"),
-                    html.Img(
-                        src="assets/Images/Scott-founder.jpg", style={"width": "250px"}
-                    ),
+                    html.Img(src="assets/Images/profile.jpg", style={"width": "250px"}),
                     html.P("Name"),
                     dcc.Dropdown(
                         id="athlete-dropdown",
@@ -379,11 +480,30 @@ def serve_layout():
                                 style=GAUGE_CLUSTER_STYLE,
                                 children=[
                                     html.Div(
-                                        dcc.Graph(
-                                            id=f"gauge-{gauge_id}",
-                                            figure=create_gauge(50, title),
-                                            config={"displayModeBar": False},
-                                        ),
+                                        [
+                                            dcc.Graph(
+                                                id=f"gauge-{gauge_id}",
+                                                figure=create_gauge(50, title),
+                                                config={"displayModeBar": False},
+                                            ),
+                                            html.P(
+                                                _col,
+                                                style={
+                                                    "textAlign": "center",
+                                                    "fontSize": "12px",
+                                                    "margin": "0",
+                                                },
+                                            ),
+                                            html.P(
+                                                id=f"raw-{gauge_id}",
+                                                children="—",
+                                                style={
+                                                    "textAlign": "center",
+                                                    "fontSize": "12px",
+                                                    "margin": "0",
+                                                },
+                                            ),
+                                        ],
                                         style={"width": "200px"},
                                     )
                                     for gauge_id, title, _col in GAUGE_CONFIG
@@ -424,7 +544,7 @@ def serve_layout():
                                                 }
                                             ),
                                             html.Span(
-                                                "Selected Test",
+                                                "Current Test",
                                                 style={"fontSize": "12px"},
                                             ),
                                         ],
@@ -445,7 +565,7 @@ def serve_layout():
                                                 }
                                             ),
                                             html.Span(
-                                                "Athlete Avg",
+                                                "Last 5 Avg",
                                                 style={"fontSize": "12px"},
                                             ),
                                         ],
@@ -461,8 +581,28 @@ def serve_layout():
                                                 style={
                                                     "width": "14px",
                                                     "height": "14px",
-                                                    "backgroundColor": "#d9534f",
+                                                    "backgroundColor": "#f0ad4e",
                                                     "borderRadius": "2px",
+                                                }
+                                            ),
+                                            html.Span(
+                                                "Baseline",
+                                                style={"fontSize": "12px"},
+                                            ),
+                                        ],
+                                    ),
+                                    html.Div(
+                                        style={
+                                            "display": "flex",
+                                            "alignItems": "center",
+                                            "gap": "6px",
+                                        },
+                                        children=[
+                                            html.Div(
+                                                style={
+                                                    "width": "20px",
+                                                    "height": "0px",
+                                                    "borderTop": "2px dashed #d9534f",
                                                 }
                                             ),
                                             html.Span(
@@ -536,6 +676,33 @@ def serve_layout():
                             ),
                         ],
                     ),
+                    # ====================== Trends ===================================
+                    html.Div(
+                        style={**CARD_STYLE, "marginBottom": "16px"},
+                        children=[
+                            html.H3(
+                                "Trends",
+                                style={"textAlign": "center", "marginBottom": "8px"},
+                            ),
+                            html.Div(
+                                style={
+                                    "display": "grid",
+                                    "gridTemplateColumns": "repeat(3, 1fr)",
+                                    "gap": "8px",
+                                },
+                                children=[
+                                    html.Div(
+                                        dcc.Graph(
+                                            id=f"trend-{trend_id}",
+                                            figure=_default_trend,
+                                            config={"displayModeBar": False},
+                                        ),
+                                    )
+                                    for trend_id, _title, _col in TREND_CONFIG
+                                ],
+                            ),
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -562,23 +729,28 @@ def update_date_dropdown(selected_name):
 
 
 @callback(
-    [Output(f"gauge-{gauge_id}", "figure") for gauge_id, _, _ in GAUGE_CONFIG],
+    [Output(f"gauge-{gauge_id}", "figure") for gauge_id, _, _ in GAUGE_CONFIG]
+    + [Output(f"raw-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG],
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
 def update_gauges(selected_name, selected_date):
     """Update all 5 gauge figures when athlete or date changes."""
+    default_figs = [create_gauge(50, title) for _, title, _ in GAUGE_CONFIG]
+    default_texts = ["—" for _ in GAUGE_CONFIG]
+
     if not selected_name or not selected_date:
-        return [create_gauge(50, title) for _, title, _ in GAUGE_CONFIG]
+        return default_figs + default_texts
 
     test_data = q.get_test_data(selected_name, selected_date)
     if not test_data:
-        return [create_gauge(50, title) for _, title, _ in GAUGE_CONFIG]
+        return default_figs + default_texts
 
     # Get baseline (earliest test) for this athlete — independent of selected date
     baseline_data = q.get_baseline_data(selected_name)
 
     figures = []
+    raw_texts = []
     for _gauge_id, title, col in GAUGE_CONFIG:
         stats = population_stats.get(col, {"mean": 0, "std": 1})
 
@@ -599,8 +771,9 @@ def update_gauges(selected_name, selected_date):
         )
 
         figures.append(create_gauge(scaled, title, baseline=baseline_scaled))
+        raw_texts.append(f"{float(raw_value):.2f}" if raw_value is not None else "—")
 
-    return figures
+    return figures + raw_texts
 
 
 @callback(
@@ -612,23 +785,26 @@ def update_bars(selected_name, selected_date):
     """Update all Movement Analysis bar charts when athlete or date changes."""
     if not selected_name or not selected_date:
         return [
-            create_bar_chart(0, 0, 0, title, unit) for _, title, _, unit in BAR_CONFIG
+            create_bar_chart(0, 0, 0, 0, title, unit) for _, title, _, unit in BAR_CONFIG
         ]
 
     test_data = q.get_test_data(selected_name, selected_date)
     athlete_avg = q.get_athlete_average(selected_name)
+    baseline_data = q.get_baseline_data(selected_name)
 
     figures = []
     for _bar_id, title, col, unit in BAR_CONFIG:
         athlete_value = test_data.get(col)
         avg_value = athlete_avg.get(col)
         team_value = team_averages.get(col)
+        baseline_value = baseline_data.get(col) if baseline_data else None
 
         figures.append(
             create_bar_chart(
                 float(athlete_value) if athlete_value is not None else None,
                 float(avg_value) if avg_value is not None else None,
                 float(team_value) if team_value is not None else None,
+                float(baseline_value) if baseline_value is not None else None,
                 title,
                 unit,
             )
@@ -654,7 +830,7 @@ def update_injury_date_dropdown(selected_name):
 @callback(
     Output("injury-diverging-chart", "figure"),
     Input("athlete-dropdown", "value"),
-    Input("injury-date-dropdown", "value"),
+    Input("date-dropdown", "value"),
 )
 def update_injury_chart(selected_name, selected_date):
     """Update the injury risk diverging chart when athlete or date changes."""
@@ -707,6 +883,30 @@ def update_injury_data(selected_name, selected_date):
             else "Relative Peak Landing Force: —"
         ),
     ]
+
+
+@callback(
+    [Output(f"trend-{tid}", "figure") for tid, _, _ in TREND_CONFIG],
+    Input("athlete-dropdown", "value"),
+)
+def update_trends(selected_name):
+    """Update all Trend scatter plots when athlete changes."""
+    defaults = [_default_trend for _ in TREND_CONFIG]
+    if not selected_name:
+        return defaults
+
+    trend_rows = q.get_trend_data(selected_name)
+    if not trend_rows:
+        return defaults
+
+    dates = [row["test_date"] for row in trend_rows]
+
+    figures = []
+    for _tid, title, col in TREND_CONFIG:
+        values = [float(row.get(col) or 0) for row in trend_rows]
+        figures.append(create_trend_chart(dates, values, title))
+
+    return figures
 
 
 # ====================== Standalone App (for testing) ===================================

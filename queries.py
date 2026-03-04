@@ -128,12 +128,21 @@ def get_population_stats() -> dict:
 
 
 def get_athlete_average(athlete_name: str) -> dict:
-    """Get the athlete's overall average for each bar metric across all tests.
+    """Get the athlete's average for each bar metric across their last 5 test dates.
 
+    If the athlete has fewer than 5 test dates, all available dates are used.
     Returns: {"rebound_impulse_ratio": 1.23, ...} or {} if none.
     """
     avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in BAR_COLUMNS)
-    query = text(f"SELECT {avg_cols} FROM tests_cmjr WHERE athlete_name = :name")
+    query = text(
+        f"SELECT {avg_cols} FROM tests_cmjr "
+        "WHERE athlete_name = :name "
+        "AND to_timestamp(timestamp)::date IN ("
+        "  SELECT DISTINCT to_timestamp(timestamp)::date AS test_date "
+        "  FROM tests_cmjr WHERE athlete_name = :name "
+        "  ORDER BY test_date DESC LIMIT 5"
+        ")"
+    )
     with engine.connect() as conn:
         result = conn.execute(query, {"name": athlete_name})
         row = result.mappings().fetchone()
@@ -167,26 +176,28 @@ def get_cmj_test_dates(athlete_name: str) -> list[dict]:
 
 
 ASYMMETRY_COLUMNS = [
-    "lr_peak_braking_force",
+    "cmj_lr_braking_impulse_index",
+    "cmj_lr_propulsive_impulse_index",
     "lr_peak_landing_force",
-    "lr_peak_propulsive_force",
+    "rebound_lr_braking_impulse_index",
+    "rebound_lr_propulsive_impulse_index",
 ]
 
 
 def get_cmj_baseline_asymmetry(athlete_name: str) -> dict:
-    """Get averaged asymmetry metrics from the athlete's earliest CMJ test date.
+    """Get averaged asymmetry metrics from the athlete's earliest CMJR test date.
 
     Averages the 3 trials on the baseline date.
-    Returns dict like {"lr_peak_braking_force": -0.05, ...} or {}.
+    Returns dict like {"cmj_lr_braking_impulse_index": -0.05, ...} or {}.
     """
     avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in ASYMMETRY_COLUMNS)
     query = text(
         f"SELECT {avg_cols} "
-        "FROM tests_cmj "
+        "FROM tests_cmjr "
         "WHERE athlete_name = :name "
         "AND to_timestamp(timestamp)::date = ("
         "  SELECT MIN(to_timestamp(timestamp)::date) "
-        "  FROM tests_cmj WHERE athlete_name = :name"
+        "  FROM tests_cmjr WHERE athlete_name = :name"
         ")"
     )
     with engine.connect() as conn:
@@ -198,15 +209,15 @@ def get_cmj_baseline_asymmetry(athlete_name: str) -> dict:
 
 
 def get_cmj_date_asymmetry(athlete_name: str, test_date_iso: str) -> dict:
-    """Get averaged asymmetry metrics for a specific CMJ test date.
+    """Get averaged asymmetry metrics for a specific CMJR test date.
 
     Averages the 3 trials on the given date.
-    Returns dict like {"lr_peak_braking_force": -0.05, ...} or {}.
+    Returns dict like {"cmj_lr_braking_impulse_index": -0.05, ...} or {}.
     """
     avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in ASYMMETRY_COLUMNS)
     query = text(
         f"SELECT {avg_cols} "
-        "FROM tests_cmj "
+        "FROM tests_cmjr "
         "WHERE athlete_name = :name "
         "AND to_timestamp(timestamp)::date = :test_date"
     )
@@ -237,6 +248,27 @@ INJURY_DATA = [
     "rebound_depth_m",
     "relative_peak_landing_force",
 ]
+
+
+def get_trend_data(athlete_name: str) -> list[dict]:
+    """Get per-date averaged metrics for all test dates of an athlete.
+
+    Returns a list of dicts ordered by date ascending:
+        [{"test_date": datetime.date, "col1": float, ...}, ...]
+    Covers both gauge and bar metrics for the Trends container.
+    """
+    all_cols = GAUGE_COLUMNS + BAR_COLUMNS
+    avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in all_cols)
+    query = text(
+        f"SELECT to_timestamp(timestamp)::date AS test_date, {avg_cols} "
+        "FROM tests_cmjr "
+        "WHERE athlete_name = :name "
+        "GROUP BY test_date "
+        "ORDER BY test_date ASC"
+    )
+    with engine.connect() as conn:
+        result = conn.execute(query, {"name": athlete_name})
+        return [dict(row) for row in result.mappings()]
 
 
 def get_injury_data(athlete_name: str, test_date_iso: str) -> dict:
