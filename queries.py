@@ -151,6 +151,25 @@ def get_athlete_average(athlete_name: str) -> dict:
         return dict(row)
 
 
+def get_athlete_alltime_average(athlete_name: str) -> dict:
+    """Get the athlete's all-time average for each gauge metric.
+
+    Returns: {"cmj_jump_height_m": 1.23, ...} or {} if none.
+    """
+    all_cols = GAUGE_COLUMNS + BAR_COLUMNS
+    avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in all_cols)
+    query = text(
+        f"SELECT {avg_cols} FROM tests_cmjr "
+        "WHERE athlete_name = :name"
+    )
+    with engine.connect() as conn:
+        result = conn.execute(query, {"name": athlete_name})
+        row = result.mappings().fetchone()
+        if row is None:
+            return {}
+        return dict(row)
+
+
 # ================ Injury Container ==========================================
 def get_cmj_test_dates(athlete_name: str) -> list[dict]:
     """Get distinct test dates from tests_cmj for a given athlete, most recent first.
@@ -247,6 +266,7 @@ INJURY_DATA = [
     "time_to_stabilization_ms",
     "rebound_depth_m",
     "relative_peak_landing_force",
+    "system_weight_n",
 ]
 
 
@@ -257,7 +277,11 @@ def get_trend_data(athlete_name: str) -> list[dict]:
         [{"test_date": datetime.date, "col1": float, ...}, ...]
     Covers both gauge and bar metrics for the Trends container.
     """
-    all_cols = GAUGE_COLUMNS + BAR_COLUMNS
+    all_cols = GAUGE_COLUMNS + BAR_COLUMNS + [
+        "rebound_depth_m",
+        "time_to_stabilization_ms",
+        "relative_peak_landing_force",
+    ]
     avg_cols = ", ".join(f"AVG({col}) AS {col}" for col in all_cols)
     query = text(
         f"SELECT to_timestamp(timestamp)::date AS test_date, {avg_cols} "

@@ -318,32 +318,99 @@ TREND_CONFIG = [
     (gid, title, col) for gid, title, col in GAUGE_CONFIG
 ] + [
     (bid, title, col) for bid, title, col, _unit in BAR_CONFIG
+] + [
+    ("rebound-cm-depth", "Rebound CM Depth", "rebound_depth_m"),
+    ("time-to-stabilization", "Time to Stabilization", "time_to_stabilization_ms"),
+    ("rel-peak-landing-force", "Relative Peak Landing Force", "relative_peak_landing_force"),
 ]
 
 
 def create_trend_chart(dates, values, title: str) -> go.Figure:
-    """Create a scatter plot with a linear trend line.
+    """Create a scatter plot with highlighted baseline/current and a trend line.
 
-    dates: list of datetime.date objects
+    dates: list of datetime.date objects (ascending)
     values: list of float metric values
     """
     fig = go.Figure()
 
-    # Data points
+    if not dates:
+        fig.update_layout(
+            title=dict(text=title, x=0.5, xanchor="center", font=dict(size=13)),
+            height=250,
+            margin=dict(l=40, r=20, t=50, b=40),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        return fig
+
+    n = len(dates)
+    # Last 5 tests *before* the current (most recent) one
+    last5_end = n - 1  # exclusive — stop before current
+    last5_start = max(0, last5_end - 5)
+
+    # Shaded band for last-5 test window (only if there are tests before current)
+    if last5_end > last5_start:
+        fig.add_vrect(
+            x0=dates[last5_start],
+            x1=dates[last5_end - 1],
+            fillcolor="#4a90d9",
+            opacity=0.08,
+            line_width=0,
+            annotation_text="Last 5",
+            annotation_position="top left",
+            annotation_font_size=9,
+            annotation_font_color="#4a90d9",
+        )
+
+    # All data points (regular markers)
     fig.add_trace(
         go.Scatter(
             x=dates,
             y=values,
-            mode="lines+markers",
-            name="Value",
-            marker=dict(color="#4a90d9", size=8),
-            line=dict(color="#4a90d9", width=1),
+            mode="markers",
+            name="Tests",
+            marker=dict(color="#4a90d9", size=7),
         )
     )
 
+    # Baseline highlight (first point)
+    fig.add_trace(
+        go.Scatter(
+            x=[dates[0]],
+            y=[values[0]],
+            mode="markers+text",
+            name="Baseline",
+            marker=dict(
+                color="#f0ad4e", size=13, symbol="diamond",
+                line=dict(color="white", width=1.5),
+            ),
+            text=["Baseline"],
+            textposition="top center",
+            textfont=dict(size=9, color="#f0ad4e"),
+        )
+    )
+
+    # Most recent highlight (last point)
+    if n > 1:
+        fig.add_trace(
+            go.Scatter(
+                x=[dates[-1]],
+                y=[values[-1]],
+                mode="markers+text",
+                name="Current",
+                marker=dict(
+                    color="#5cb85c", size=13, symbol="star",
+                    line=dict(color="white", width=1.5),
+                ),
+                text=["Current"],
+                textposition="top center",
+                textfont=dict(size=9, color="#5cb85c"),
+            )
+        )
+
     # Linear trend line (needs at least 2 points)
-    if len(dates) >= 2:
-        x_numeric = np.arange(len(dates), dtype=float)
+    if n >= 2:
+        x_numeric = np.arange(n, dtype=float)
         y_arr = np.array(values, dtype=float)
         coeffs = np.polyfit(x_numeric, y_arr, 1)
         trend_y = np.polyval(coeffs, x_numeric)
@@ -432,7 +499,7 @@ def serve_layout():
                     ),
                     html.P("Age: 17"),
                     html.P("Height: 5' 10''"),
-                    html.P("Weight: 150 lbs"),
+                    html.P(id="athlete-weight", children="Weight: —"),
                     html.Hr(),
                     html.P("Sport: Basketball"),
                     html.P("Position: Guard"),
@@ -499,12 +566,24 @@ def serve_layout():
                                                 children="—",
                                                 style={
                                                     "textAlign": "center",
-                                                    "fontSize": "12px",
+                                                    "fontSize": "16px",
                                                     "margin": "0",
                                                 },
                                             ),
+                                            html.P(
+                                                id=f"pct-diff-{gauge_id}",
+                                                children="",
+                                                style={
+                                                    "textAlign": "center",
+                                                    "fontSize": "14px",
+                                                    "margin": "4px auto 0",
+                                                    "padding": "2px 8px",
+                                                    "borderRadius": "4px",
+                                                    "display": "inline-block",
+                                                },
+                                            ),
                                         ],
-                                        style={"width": "200px"},
+                                        style={"width": "200px", "textAlign": "center"},
                                     )
                                     for gauge_id, title, _col in GAUGE_CONFIG
                                 ],
@@ -620,11 +699,26 @@ def serve_layout():
                                 },
                                 children=[
                                     html.Div(
-                                        dcc.Graph(
-                                            id=f"bar-{bar_id}",
-                                            figure=_default_bar,
-                                            config={"displayModeBar": False},
-                                        ),
+                                        [
+                                            dcc.Graph(
+                                                id=f"bar-{bar_id}",
+                                                figure=_default_bar,
+                                                config={"displayModeBar": False},
+                                            ),
+                                            html.P(
+                                                id=f"bar-pct-diff-{bar_id}",
+                                                children="",
+                                                style={
+                                                    "textAlign": "center",
+                                                    "fontSize": "14px",
+                                                    "margin": "4px auto 0",
+                                                    "padding": "2px 8px",
+                                                    "borderRadius": "4px",
+                                                    "display": "inline-block",
+                                                },
+                                            ),
+                                        ],
+                                        style={"textAlign": "center"},
                                     )
                                     for bar_id, _title, _col, _unit in BAR_CONFIG
                                 ],
@@ -638,17 +732,6 @@ def serve_layout():
                             html.H3(
                                 "Injury Risk Assesment",
                                 style={"textAlign": "center", "marginBottom": "8px"},
-                            ),
-                            html.Div(
-                                style={"display": "inline-block", "minWidth": "160px"},
-                                children=[
-                                    html.P("Test Date"),
-                                    dcc.Dropdown(
-                                        id="injury-date-dropdown",
-                                        options=[],
-                                        placeholder="Select Date",
-                                    ),
-                                ],
                             ),
                             dcc.Graph(
                                 id="injury-diverging-chart",
@@ -670,7 +753,6 @@ def serve_layout():
                                 style={"padding": "8px"},
                                 children=[
                                     html.P("Time to Stabilization: —"),
-                                    html.P("Rebound CM Depth: —"),
                                     html.P("Relative Peak Landing Force: —"),
                                 ],
                             ),
@@ -730,7 +812,9 @@ def update_date_dropdown(selected_name):
 
 @callback(
     [Output(f"gauge-{gauge_id}", "figure") for gauge_id, _, _ in GAUGE_CONFIG]
-    + [Output(f"raw-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG],
+    + [Output(f"raw-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG]
+    + [Output(f"pct-diff-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG]
+    + [Output(f"pct-diff-{gauge_id}", "style") for gauge_id, _, _ in GAUGE_CONFIG],
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
@@ -738,19 +822,25 @@ def update_gauges(selected_name, selected_date):
     """Update all 5 gauge figures when athlete or date changes."""
     default_figs = [create_gauge(50, title) for _, title, _ in GAUGE_CONFIG]
     default_texts = ["—" for _ in GAUGE_CONFIG]
+    default_pct_texts = ["" for _ in GAUGE_CONFIG]
+    default_pct_styles = [{"display": "none"} for _ in GAUGE_CONFIG]
 
     if not selected_name or not selected_date:
-        return default_figs + default_texts
+        return default_figs + default_texts + default_pct_texts + default_pct_styles
 
     test_data = q.get_test_data(selected_name, selected_date)
     if not test_data:
-        return default_figs + default_texts
+        return default_figs + default_texts + default_pct_texts + default_pct_styles
 
     # Get baseline (earliest test) for this athlete — independent of selected date
     baseline_data = q.get_baseline_data(selected_name)
+    # All-time average for % change calculation
+    alltime_avg = q.get_athlete_alltime_average(selected_name)
 
     figures = []
     raw_texts = []
+    pct_texts = []
+    pct_styles = []
     for _gauge_id, title, col in GAUGE_CONFIG:
         stats = population_stats.get(col, {"mean": 0, "std": 1})
 
@@ -773,26 +863,63 @@ def update_gauges(selected_name, selected_date):
         figures.append(create_gauge(scaled, title, baseline=baseline_scaled))
         raw_texts.append(f"{float(raw_value):.2f}" if raw_value is not None else "—")
 
-    return figures + raw_texts
+        # % difference: all-time average vs baseline
+        avg_value = alltime_avg.get(col) if alltime_avg else None
+        if avg_value is not None and baseline_raw is not None and float(baseline_raw) != 0:
+            pct_signed = ((float(avg_value) - float(baseline_raw)) / float(baseline_raw)) * 100
+            pct_texts.append(f"{pct_signed:+.1f}%")
+
+            base_style = {
+                "textAlign": "center",
+                "fontSize": "14px",
+                "margin": "4px auto 0",
+                "padding": "2px 8px",
+                "borderRadius": "4px",
+                "display": "inline-block",
+                "fontWeight": "bold",
+            }
+
+            if pct_signed >= 5:
+                pct_styles.append({**base_style, "backgroundColor": "#4a90d9", "color": "white"})
+            elif pct_signed <= -10:
+                pct_styles.append({**base_style, "backgroundColor": "#d9534f", "color": "white"})
+            elif pct_signed <= -5:
+                pct_styles.append({**base_style, "backgroundColor": "#f5e642", "color": "black"})
+            else:
+                # -4.99 to 4.99: no background
+                pct_styles.append({**base_style, "color": "#666"})
+        else:
+            pct_texts.append("")
+            pct_styles.append({"display": "none"})
+
+    return figures + raw_texts + pct_texts + pct_styles
 
 
 @callback(
-    [Output(f"bar-{bar_id}", "figure") for bar_id, _, _, _ in BAR_CONFIG],
+    [Output(f"bar-{bar_id}", "figure") for bar_id, _, _, _ in BAR_CONFIG]
+    + [Output(f"bar-pct-diff-{bar_id}", "children") for bar_id, _, _, _ in BAR_CONFIG]
+    + [Output(f"bar-pct-diff-{bar_id}", "style") for bar_id, _, _, _ in BAR_CONFIG],
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
 def update_bars(selected_name, selected_date):
     """Update all Movement Analysis bar charts when athlete or date changes."""
+    default_pct_texts = ["" for _ in BAR_CONFIG]
+    default_pct_styles = [{"display": "none"} for _ in BAR_CONFIG]
+
     if not selected_name or not selected_date:
         return [
             create_bar_chart(0, 0, 0, 0, title, unit) for _, title, _, unit in BAR_CONFIG
-        ]
+        ] + default_pct_texts + default_pct_styles
 
     test_data = q.get_test_data(selected_name, selected_date)
     athlete_avg = q.get_athlete_average(selected_name)
     baseline_data = q.get_baseline_data(selected_name)
+    alltime_avg = q.get_athlete_alltime_average(selected_name)
 
     figures = []
+    pct_texts = []
+    pct_styles = []
     for _bar_id, title, col, unit in BAR_CONFIG:
         athlete_value = test_data.get(col)
         avg_value = athlete_avg.get(col)
@@ -810,21 +937,36 @@ def update_bars(selected_name, selected_date):
             )
         )
 
-    return figures
+        # % difference: all-time average vs baseline
+        alltime_val = alltime_avg.get(col) if alltime_avg else None
+        if alltime_val is not None and baseline_value is not None and float(baseline_value) != 0:
+            pct_signed = ((float(alltime_val) - float(baseline_value)) / float(baseline_value)) * 100
+            pct_texts.append(f"{pct_signed:+.1f}%")
 
+            base_style = {
+                "textAlign": "center",
+                "fontSize": "14px",
+                "margin": "4px auto 0",
+                "padding": "2px 8px",
+                "borderRadius": "4px",
+                "display": "inline-block",
+                "fontWeight": "bold",
+            }
 
-@callback(
-    Output("injury-date-dropdown", "options"),
-    Output("injury-date-dropdown", "value"),
-    Input("athlete-dropdown", "value"),
-)
-def update_injury_date_dropdown(selected_name):
-    """Populate injury risk date dropdown from tests_cmj dates."""
-    if not selected_name:
-        return [], None
-    dates = q.get_cmj_test_dates(selected_name)
-    default_value = dates[0]["value"] if dates else None
-    return dates, default_value
+            if pct_signed >= 5:
+                pct_styles.append({**base_style, "backgroundColor": "#4a90d9", "color": "white"})
+            elif pct_signed <= -10:
+                pct_styles.append({**base_style, "backgroundColor": "#d9534f", "color": "white"})
+            elif pct_signed <= -5:
+                pct_styles.append({**base_style, "backgroundColor": "#f5e642", "color": "black"})
+            else:
+                pct_styles.append({**base_style, "color": "#666"})
+        else:
+            pct_texts.append("")
+            pct_styles.append({"display": "none"})
+
+    return figures + pct_texts + pct_styles
+
 
 
 @callback(
@@ -847,6 +989,7 @@ def update_injury_chart(selected_name, selected_date):
 
 @callback(
     Output("injury-data-display", "children"),
+    Output("athlete-weight", "children"),
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
@@ -854,19 +997,29 @@ def update_injury_data(selected_name, selected_date):
     """Update the injury data values below the diverging chart."""
     default = [
         html.P("Time to Stabilization: —"),
-        html.P("Rebound CM Depth: —"),
         html.P("Relative Peak Landing Force: —"),
     ]
     if not selected_name or not selected_date:
-        return default
+        return default, "Weight: —"
 
     data = q.get_injury_data(selected_name, selected_date)
     if not data:
-        return default
+        return default, "Weight: —"
 
     tts = data.get("time_to_stabilization_ms")
-    rcd = data.get("rebound_depth_m")
     rplf = data.get("relative_peak_landing_force")
+    system_weight_n = data.get("system_weight_n")
+
+    # Convert system weight from Newtons to kg and lbs
+    weight_kg = float(system_weight_n) / 9.81 if system_weight_n is not None else None
+    weight_lbs = weight_kg * 2.20462 if weight_kg is not None else None
+
+    # Normalize peak landing force by body weight in kg
+    rplf_normalized = (
+        float(rplf) / weight_kg if rplf is not None and weight_kg else None
+    )
+
+    weight_text = f"Weight: {weight_lbs:.1f} lbs" if weight_lbs is not None else "Weight: —"
 
     return [
         html.P(
@@ -875,14 +1028,11 @@ def update_injury_data(selected_name, selected_date):
             else "Time to Stabilization: —"
         ),
         html.P(
-            f"Rebound CM Depth: {rcd:.2f}" if rcd is not None else "Rebound CM Depth: —"
-        ),
-        html.P(
-            f"Relative Peak Landing Force: {rplf:.2f}"
-            if rplf is not None
+            f"Relative Peak Landing Force: {rplf_normalized:.2f}"
+            if rplf_normalized is not None
             else "Relative Peak Landing Force: —"
         ),
-    ]
+    ], weight_text
 
 
 @callback(
@@ -899,11 +1049,22 @@ def update_trends(selected_name):
     if not trend_rows:
         return defaults
 
-    dates = [row["test_date"] for row in trend_rows]
+    # Filter to: baseline (first), last 5 before current, and current (last)
+    all_dates = [row["test_date"] for row in trend_rows]
+    n = len(all_dates)
+
+    if n <= 7:
+        # 7 or fewer tests — keep all (baseline + up to 5 middle + current)
+        filtered_rows = trend_rows
+    else:
+        # baseline (index 0) + last 5 before current (indices -6 to -2) + current (-1)
+        filtered_rows = [trend_rows[0]] + trend_rows[-6:-1] + [trend_rows[-1]]
+
+    dates = [row["test_date"] for row in filtered_rows]
 
     figures = []
     for _tid, title, col in TREND_CONFIG:
-        values = [float(row.get(col) or 0) for row in trend_rows]
+        values = [float(row.get(col) or 0) for row in filtered_rows]
         figures.append(create_trend_chart(dates, values, title))
 
     return figures
