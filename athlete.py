@@ -1,6 +1,6 @@
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, callback, dcc, html
+from dash import Dash, Input, Output, Patch, callback, dcc, html
 
 import queries as q
 
@@ -107,27 +107,28 @@ def create_gauge(
         )
     )
 
-    # Overlay a second invisible gauge to render the baseline tick line
-    if baseline is not None:
-        fig.add_trace(
-            go.Indicator(
-                mode="gauge",
-                value=0,
-                gauge={
-                    "axis": {"range": [min_val, max_val], "visible": False},
-                    "bar": {"color": "rgba(0,0,0,0)"},
-                    "bgcolor": "rgba(0,0,0,0)",
-                    "borderwidth": 0,
-                    "steps": [],
-                    "threshold": {
-                        "line": {"color": "orange", "width": 2},
-                        "thickness": 0.75,
-                        "value": baseline,
-                    },
+    # Always include baseline overlay trace for consistent Patch structure
+    baseline_val = baseline if baseline is not None else 0
+    baseline_color = "orange" if baseline is not None else "rgba(0,0,0,0)"
+    fig.add_trace(
+        go.Indicator(
+            mode="gauge",
+            value=0,
+            gauge={
+                "axis": {"range": [min_val, max_val], "visible": False},
+                "bar": {"color": "rgba(0,0,0,0)"},
+                "bgcolor": "rgba(0,0,0,0)",
+                "borderwidth": 0,
+                "steps": [],
+                "threshold": {
+                    "line": {"color": baseline_color, "width": 2},
+                    "thickness": 0.75,
+                    "value": baseline_val,
                 },
-                domain={"x": [0, 1], "y": [0, 1]},
-            )
+            },
+            domain={"x": [0, 1], "y": [0, 1]},
         )
+    )
 
     fig.update_layout(
         height=200,
@@ -137,12 +138,15 @@ def create_gauge(
     return fig
 
 
-def scale_to_gauge(value: float, mean: float, std: float) -> float:
+def scale_to_gauge(value: float, mean: float, std: float, invert: bool = False) -> float:
     """Convert a raw metric value to a 0-100 gauge score via z-score.
 
     z=0 maps to 50, z=±3 maps to 0/100, clamped to [0, 100].
+    invert: if True, negate z so that lower raw values score higher on the gauge.
     """
     z = (value - mean) / std
+    if invert:
+        z = -z
     scaled = 50 + (z / 3) * 50
     return max(0.0, min(100.0, round(scaled, 1)))
 
@@ -208,6 +212,10 @@ def create_bar_chart(
 
 
 _default_bar = create_bar_chart(0, 0, 0, 0, "—", "")
+_default_bars = {
+    bar_id: create_bar_chart(0, 0, 0, 0, title, unit)
+    for bar_id, title, _col, unit in BAR_CONFIG
+}
 
 
 # ====================== Diverging Chart Helper Function ===================================
@@ -702,7 +710,7 @@ def serve_layout():
                                         [
                                             dcc.Graph(
                                                 id=f"bar-{bar_id}",
-                                                figure=_default_bar,
+                                                figure=_default_bars[bar_id],
                                                 config={"displayModeBar": False},
                                             ),
                                             html.P(
@@ -834,20 +842,22 @@ def update_gauges(selected_name, selected_date):
 
     # Get baseline (earliest test) for this athlete — independent of selected date
     baseline_data = q.get_baseline_data(selected_name)
-    # All-time average for % change calculation
-    alltime_avg = q.get_athlete_alltime_average(selected_name)
 
     figures = []
     raw_texts = []
     pct_texts = []
     pct_styles = []
+    # Metrics where lower raw values are better (inverted z-score)
+    INVERT_GAUGE = set()
+
     for _gauge_id, title, col in GAUGE_CONFIG:
         stats = population_stats.get(col, {"mean": 0, "std": 1})
+        invert = col in INVERT_GAUGE
 
         # Current test value
         raw_value = test_data.get(col)
         scaled = (
-            scale_to_gauge(float(raw_value), stats["mean"], stats["std"])
+            scale_to_gauge(float(raw_value), stats["mean"], stats["std"], invert=invert)
             if raw_value is not None
             else 50
         )
@@ -855,7 +865,7 @@ def update_gauges(selected_name, selected_date):
         # Baseline value (earliest test)
         baseline_raw = baseline_data.get(col) if baseline_data else None
         baseline_scaled = (
-            scale_to_gauge(float(baseline_raw), stats["mean"], stats["std"])
+            scale_to_gauge(float(baseline_raw), stats["mean"], stats["std"], invert=invert)
             if baseline_raw is not None
             else None
         )
@@ -863,10 +873,9 @@ def update_gauges(selected_name, selected_date):
         figures.append(create_gauge(scaled, title, baseline=baseline_scaled))
         raw_texts.append(f"{float(raw_value):.2f}" if raw_value is not None else "—")
 
-        # % difference: all-time average vs baseline
-        avg_value = alltime_avg.get(col) if alltime_avg else None
-        if avg_value is not None and baseline_raw is not None and float(baseline_raw) != 0:
-            pct_signed = ((float(avg_value) - float(baseline_raw)) / float(baseline_raw)) * 100
+        # % difference: selected test vs baseline
+        if raw_value is not None and baseline_raw is not None and float(baseline_raw) != 0:
+            pct_signed = ((float(raw_value) - float(baseline_raw)) / abs(float(baseline_raw))) * 100
             pct_texts.append(f"{pct_signed:+.1f}%")
 
             base_style = {
@@ -915,8 +924,6 @@ def update_bars(selected_name, selected_date):
     test_data = q.get_test_data(selected_name, selected_date)
     athlete_avg = q.get_athlete_average(selected_name)
     baseline_data = q.get_baseline_data(selected_name)
-    alltime_avg = q.get_athlete_alltime_average(selected_name)
-
     figures = []
     pct_texts = []
     pct_styles = []
@@ -937,10 +944,13 @@ def update_bars(selected_name, selected_date):
             )
         )
 
-        # % difference: all-time average vs baseline
-        alltime_val = alltime_avg.get(col) if alltime_avg else None
-        if alltime_val is not None and baseline_value is not None and float(baseline_value) != 0:
-            pct_signed = ((float(alltime_val) - float(baseline_value)) / float(baseline_value)) * 100
+        # % difference: selected test vs baseline
+        # Invert for "lower is better" metrics
+        lower_is_better = col == "rebound_contact_time_ms"
+        if athlete_value is not None and baseline_value is not None and float(baseline_value) != 0:
+            pct_signed = ((float(athlete_value) - float(baseline_value)) / float(baseline_value)) * 100
+            if lower_is_better:
+                pct_signed *= -1
             pct_texts.append(f"{pct_signed:+.1f}%")
 
             base_style = {
