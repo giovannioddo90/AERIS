@@ -138,7 +138,9 @@ def create_gauge(
     return fig
 
 
-def scale_to_gauge(value: float, mean: float, std: float, invert: bool = False) -> float:
+def scale_to_gauge(
+    value: float, mean: float, std: float, invert: bool = False
+) -> float:
     """Convert a raw metric value to a 0-100 gauge score via z-score.
 
     z=0 maps to 50, z=±3 maps to 0/100, clamped to [0, 100].
@@ -322,15 +324,19 @@ _default_diverging = create_diverging_chart({}, {})
 
 # ====================== Trend Chart Helper Function ===================================
 # Combines gauge and bar metrics for the Trends container
-TREND_CONFIG = [
-    (gid, title, col) for gid, title, col in GAUGE_CONFIG
-] + [
-    (bid, title, col) for bid, title, col, _unit in BAR_CONFIG
-] + [
-    ("rebound-cm-depth", "Rebound CM Depth", "rebound_depth_m"),
-    ("time-to-stabilization", "Time to Stabilization", "time_to_stabilization_ms"),
-    ("rel-peak-landing-force", "Relative Peak Landing Force", "relative_peak_landing_force"),
-]
+TREND_CONFIG = (
+    [(gid, title, col) for gid, title, col in GAUGE_CONFIG]
+    + [(bid, title, col) for bid, title, col, _unit in BAR_CONFIG]
+    + [
+        ("rebound-cm-depth", "Rebound CM Depth", "rebound_depth_m"),
+        ("time-to-stabilization", "Time to Stabilization", "time_to_stabilization_ms"),
+        (
+            "rel-peak-landing-force",
+            "Relative Peak Landing Force",
+            "relative_peak_landing_force",
+        ),
+    ]
+)
 
 
 def create_trend_chart(dates, values, title: str) -> go.Figure:
@@ -389,7 +395,9 @@ def create_trend_chart(dates, values, title: str) -> go.Figure:
             mode="markers+text",
             name="Baseline",
             marker=dict(
-                color="#f0ad4e", size=13, symbol="diamond",
+                color="#f0ad4e",
+                size=13,
+                symbol="diamond",
                 line=dict(color="white", width=1.5),
             ),
             text=["Baseline"],
@@ -407,7 +415,9 @@ def create_trend_chart(dates, values, title: str) -> go.Figure:
                 mode="markers+text",
                 name="Current",
                 marker=dict(
-                    color="#5cb85c", size=13, symbol="star",
+                    color="#5cb85c",
+                    size=13,
+                    symbol="star",
                     line=dict(color="white", width=1.5),
                 ),
                 text=["Current"],
@@ -865,17 +875,34 @@ def update_gauges(selected_name, selected_date):
         # Baseline value (earliest test)
         baseline_raw = baseline_data.get(col) if baseline_data else None
         baseline_scaled = (
-            scale_to_gauge(float(baseline_raw), stats["mean"], stats["std"], invert=invert)
+            scale_to_gauge(
+                float(baseline_raw), stats["mean"], stats["std"], invert=invert
+            )
             if baseline_raw is not None
             else None
         )
 
-        figures.append(create_gauge(scaled, title, baseline=baseline_scaled))
+        # Patch only the changed values instead of rebuilding the full figure
+        patched = Patch()
+        patched["data"][0]["value"] = scaled
+        patched["data"][1]["gauge"]["threshold"]["value"] = (
+            baseline_scaled if baseline_scaled is not None else 0
+        )
+        patched["data"][1]["gauge"]["threshold"]["line"]["color"] = (
+            "orange" if baseline_scaled is not None else "rgba(0,0,0,0)"
+        )
+        figures.append(patched)
         raw_texts.append(f"{float(raw_value):.2f}" if raw_value is not None else "—")
 
         # % difference: selected test vs baseline
-        if raw_value is not None and baseline_raw is not None and float(baseline_raw) != 0:
-            pct_signed = ((float(raw_value) - float(baseline_raw)) / abs(float(baseline_raw))) * 100
+        if (
+            raw_value is not None
+            and baseline_raw is not None
+            and float(baseline_raw) != 0
+        ):
+            pct_signed = (
+                (float(raw_value) - float(baseline_raw)) / abs(float(baseline_raw))
+            ) * 100
             pct_texts.append(f"{pct_signed:+.1f}%")
 
             base_style = {
@@ -889,11 +916,17 @@ def update_gauges(selected_name, selected_date):
             }
 
             if pct_signed >= 5:
-                pct_styles.append({**base_style, "backgroundColor": "#4a90d9", "color": "white"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#4a90d9", "color": "white"}
+                )
             elif pct_signed <= -10:
-                pct_styles.append({**base_style, "backgroundColor": "#d9534f", "color": "white"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#d9534f", "color": "white"}
+                )
             elif pct_signed <= -5:
-                pct_styles.append({**base_style, "backgroundColor": "#f5e642", "color": "black"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#f5e642", "color": "black"}
+                )
             else:
                 # -4.99 to 4.99: no background
                 pct_styles.append({**base_style, "color": "#666"})
@@ -917,9 +950,11 @@ def update_bars(selected_name, selected_date):
     default_pct_styles = [{"display": "none"} for _ in BAR_CONFIG]
 
     if not selected_name or not selected_date:
-        return [
-            create_bar_chart(0, 0, 0, 0, title, unit) for _, title, _, unit in BAR_CONFIG
-        ] + default_pct_texts + default_pct_styles
+        return (
+            [_default_bars[bar_id] for bar_id, _, _, _ in BAR_CONFIG]
+            + default_pct_texts
+            + default_pct_styles
+        )
 
     test_data = q.get_test_data(selected_name, selected_date)
     athlete_avg = q.get_athlete_average(selected_name)
@@ -928,27 +963,36 @@ def update_bars(selected_name, selected_date):
     pct_texts = []
     pct_styles = []
     for _bar_id, title, col, unit in BAR_CONFIG:
-        athlete_value = test_data.get(col)
-        avg_value = athlete_avg.get(col)
-        team_value = team_averages.get(col)
-        baseline_value = baseline_data.get(col) if baseline_data else None
+        athlete_value = float(test_data.get(col) or 0)
+        avg_value = float(athlete_avg.get(col) or 0)
+        team_value = float(team_averages.get(col) or 0)
+        baseline_value = float(baseline_data.get(col) or 0) if baseline_data else 0
 
-        figures.append(
-            create_bar_chart(
-                float(athlete_value) if athlete_value is not None else None,
-                float(avg_value) if avg_value is not None else None,
-                float(team_value) if team_value is not None else None,
-                float(baseline_value) if baseline_value is not None else None,
-                title,
-                unit,
-            )
-        )
+        bar_values = [athlete_value, avg_value, baseline_value]
+
+        # Patch only the changed values instead of rebuilding the full figure
+        patched = Patch()
+        patched["data"][0]["y"] = bar_values
+        patched["data"][0]["text"] = [f"{v:.2f}" for v in bar_values]
+        # Update team avg hline position and annotation
+        patched["layout"]["shapes"][0]["y0"] = team_value
+        patched["layout"]["shapes"][0]["y1"] = team_value
+        patched["layout"]["annotations"][0]["text"] = f"Team Avg: {team_value:.2f}"
+        figures.append(patched)
 
         # % difference: selected test vs baseline
         # Invert for "lower is better" metrics
+        raw_athlete = test_data.get(col)
+        raw_baseline = baseline_data.get(col) if baseline_data else None
         lower_is_better = col == "rebound_contact_time_ms"
-        if athlete_value is not None and baseline_value is not None and float(baseline_value) != 0:
-            pct_signed = ((float(athlete_value) - float(baseline_value)) / float(baseline_value)) * 100
+        if (
+            raw_athlete is not None
+            and raw_baseline is not None
+            and float(raw_baseline) != 0
+        ):
+            pct_signed = (
+                (float(raw_athlete) - float(raw_baseline)) / float(raw_baseline)
+            ) * 100
             if lower_is_better:
                 pct_signed *= -1
             pct_texts.append(f"{pct_signed:+.1f}%")
@@ -964,11 +1008,17 @@ def update_bars(selected_name, selected_date):
             }
 
             if pct_signed >= 5:
-                pct_styles.append({**base_style, "backgroundColor": "#4a90d9", "color": "white"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#4a90d9", "color": "white"}
+                )
             elif pct_signed <= -10:
-                pct_styles.append({**base_style, "backgroundColor": "#d9534f", "color": "white"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#d9534f", "color": "white"}
+                )
             elif pct_signed <= -5:
-                pct_styles.append({**base_style, "backgroundColor": "#f5e642", "color": "black"})
+                pct_styles.append(
+                    {**base_style, "backgroundColor": "#f5e642", "color": "black"}
+                )
             else:
                 pct_styles.append({**base_style, "color": "#666"})
         else:
@@ -976,7 +1026,6 @@ def update_bars(selected_name, selected_date):
             pct_styles.append({"display": "none"})
 
     return figures + pct_texts + pct_styles
-
 
 
 @callback(
@@ -1029,7 +1078,9 @@ def update_injury_data(selected_name, selected_date):
         float(rplf) / weight_kg if rplf is not None and weight_kg else None
     )
 
-    weight_text = f"Weight: {weight_lbs:.1f} lbs" if weight_lbs is not None else "Weight: —"
+    weight_text = (
+        f"Weight: {weight_lbs:.1f} lbs" if weight_lbs is not None else "Weight: —"
+    )
 
     return [
         html.P(
