@@ -2,72 +2,9 @@ import numpy as np
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, Patch, callback, dcc, html
 
-import queries as q
+import models.queries as q
 
-# ====================== Gauge Config ===================================
-# Maps gauge ID suffix -> (display title, DB column)
-GAUGE_CONFIG = [
-    ("explosive-vertical", "Explosive Vertical", "cmj_jump_height_m"),
-    (
-        "explosive-acceleration",
-        "Explosive Acceleration",
-        "rebound_jump_momentum_kg_m_s",
-    ),
-    ("explosive-capacity", "Explosive Capacity", "rebound_modified_rsi"),
-    (
-        "change-of-direction",
-        "Change of Direction",
-        "rebound_peak_relative_braking_power_w_kg",
-    ),
-    ("takeoff-power", "Take-Off Power", "rebound_peak_relative_propulsive_power_w_kg"),
-]
-
-# ====================== Injury Risk Config ===================================
-# (id_suffix, display_title, db_column)
-INJURY_CONFIG = [
-    ("cmj-braking-impulse", "CMJ Braking Impulse", "cmj_lr_braking_impulse_index"),
-    (
-        "cmj-propulsive-impulse",
-        "CMJ Propulsive Impulse",
-        "cmj_lr_propulsive_impulse_index",
-    ),
-    ("peak-landing-force", "Peak Landing Force", "lr_peak_landing_force"),
-    (
-        "rebound-braking-impulse",
-        "Rebound Braking Impulse",
-        "rebound_lr_braking_impulse_index",
-    ),
-    (
-        "rebound-propulsive-impulse",
-        "Rebound Propulsive Impulse",
-        "rebound_lr_propulsive_impulse_index",
-    ),
-]
-
-# ====================== Bar Graph Config ===================================
-# (id_suffix, display_title, db_column, unit)
-BAR_CONFIG = [
-    (
-        "sustained-braking",
-        "Sustained Force Braking",
-        "rebound_relative_braking_impulse_n_s_kg",
-        "N·s/kg",
-    ),
-    (
-        "sustained-propulsive",
-        "Sustained Force Propulsive",
-        "rebound_relative_propulsive_impulse_n_s_kg",
-        "N·s/kg",
-    ),
-    ("force-strategy", "Force Strategy", "rebound_impulse_ratio", "ratio"),
-    ("ground-contact-time", "Ground Contact Time", "rebound_contact_time_ms", "ms"),
-    (
-        "peak-force-min-disp",
-        "Peak Force at Min Displacement",
-        "rebound_force_at_min_displacement_n",
-        "N",
-    ),
-]
+from models.config import GAUGE_CONFIG, INJURY_CONFIG, BAR_CONFIG, TREND_CONFIG
 
 
 # ====================== Gauge Helper Function ===================================
@@ -322,23 +259,6 @@ def create_diverging_chart(
 _default_diverging = create_diverging_chart({}, {})
 
 
-# ====================== Trend Chart Helper Function ===================================
-# Combines gauge and bar metrics for the Trends container
-TREND_CONFIG = (
-    [(gid, title, col) for gid, title, col in GAUGE_CONFIG]
-    + [(bid, title, col) for bid, title, col, _unit in BAR_CONFIG]
-    + [
-        ("rebound-cm-depth", "Rebound CM Depth", "rebound_depth_m"),
-        ("time-to-stabilization", "Time to Stabilization", "time_to_stabilization_ms"),
-        (
-            "rel-peak-landing-force",
-            "Relative Peak Landing Force",
-            "relative_peak_landing_force",
-        ),
-    ]
-)
-
-
 def create_trend_chart(dates, values, title: str) -> go.Figure:
     """Create a scatter plot with highlighted baseline/current and a trend line.
 
@@ -477,9 +397,6 @@ GAUGE_CLUSTER_STYLE = {
     "justifyContent": "center",
     "gap": "48px",
 }
-
-# Default empty gauge figure (shown before any selection)
-_default_gauge = create_gauge(50, "—")
 
 
 def serve_layout():
