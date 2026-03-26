@@ -131,3 +131,94 @@ TREND_CONFIG = (
         ),
     ]
 )
+
+
+# ================================== Union Pines Football Queries ==================================================
+FOOTBALL_OUTPUT_METRICS = [
+    "jump_height_m",
+    "jump_momentum_kg_m_s",
+    "mrsi",
+    "peak_relative_braking_power_w_kg",
+    "peak_relative_propulsive_power_w_kg",
+]
+
+# Metric columns from database used for Movement Analysis bar graphs
+FOOTBALL_MOVEMENT_ANALYSIS_COLUMNS = [
+    "relative_braking_impulse_n_s_kg",
+    "relative_propulsive_impulse_n_s_kg",
+    "impulse_ratio",
+    "takeoff_velocity_m_s",
+    "relative_force_at_min_displacement",
+]
+
+FOOTBALL_ASYMMETRY_METRICS = [
+    "lr_peak_braking_force",
+    "lr_peak_propulsive_force",
+    "lr_peak_landing_force",
+    "lr_braking_impulse_index",
+    "lr_propulsive_impulse_index",
+]
+
+FOOTBALL_INJURY_DATA_POINTS = [
+    "time_to_stabilization_ms",
+    "relative_peak_landing_force",
+]
+
+OUTPUT_METRICS_CONFIG = [
+    ("explosive-vertical", "Explosive Vertical", "jump_height_m"),
+    (
+        "explosive-acceleration",
+        "Explosive Acceleration",
+        "jump_momentum_kg_m_s",
+    ),
+    ("explosive-capacity", "Explosive Capacity", "mrsi"),
+    (
+        "change-of-direction",
+        "Change of Direction",
+        "peak_relative_braking_power_w_kg",
+    ),
+    ("takeoff-power", "Take-Off Power", "peak_relative_propulsive_power_w_kg"),
+]
+
+FOOTBALL_MOVEMENT_ANALYSIS_CONFIG = [
+    (
+        "sustained-braking",
+        "Sustained Force Braking",
+        "relative_braking_impulse_n_s_kg",
+        "N·s/kg",
+    ),
+    (
+        "sustained-propulsive",
+        "Sustained Force Propulsive",
+        "relative_propulsive_impulse_n_s_kg",
+        "N·s/kg",
+    ),
+    ("force-strategy", "Force Strategy", "impulse_ratio", "ratio"),
+    ("takeoff-velocity", "Takeoff Velocity", "takeoff_velocity_m_s", "ms"),
+    (
+        "relative-force-min-disp",
+        "Relative Force at Min Displacement",
+        "relative_force_at_min_displacement",
+        "N",
+    ),
+]
+
+FOOTBALL_INJURY_CONFIG = [
+    ("peak-braking-force", "L|R Peak Braking Force", "lr_peak_braking_force"),
+    (
+        "peak-propulsive-force",
+        "L|R Peak Propulsive Force",
+        "lr_peak_propulsive_force",
+    ),
+    ("peak-landing-force", "L|R Peak Landing Force", "lr_peak_landing_force"),
+    (
+        "braking-impulse-index",
+        "L|R Braking Impulse Index",
+        "lr_braking_impulse_index",
+    ),
+    (
+        "propulsive-impulse-index",
+        "L|R Propulsive Impulse Index",
+        "lr_propulsive_impulse_index",
+    ),
+]

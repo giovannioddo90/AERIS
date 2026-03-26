@@ -5,84 +5,16 @@ from dash import Dash, Input, Output, Patch, callback, dcc, html
 import models.queries as q
 
 from models.config import (
-    GAUGE_COLUMNS,
-    BAR_COLUMNS,
-    GAUGE_CONFIG,
-    INJURY_CONFIG,
-    BAR_CONFIG,
-    TREND_CONFIG,
+    FOOTBALL_INJURY_CONFIG,
+    OUTPUT_METRICS_CONFIG,
+    FOOTBALL_OUTPUT_METRICS,
+    FOOTBALL_MOVEMENT_ANALYSIS_COLUMNS,
+    FOOTBALL_MOVEMENT_ANALYSIS_CONFIG,
 )
 
 
-# ====================== Gauge Helper Function ===================================
-def create_gauge(
-    value: float, title: str, baseline: float | None = None, min_val=0, max_val=100
-) -> go.Figure:
-    """Create a single gauge chart with scaled z-score (0-100).
-
-    baseline: optional scaled score from the athlete's earliest test,
-              rendered as a colored tick line on the gauge arc.
-    """
-    fig = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=value,
-            title={"text": title, "font": {"size": 14}},
-            number={"font": {"size": 24}},
-            gauge={
-                "axis": {"range": [min_val, max_val], "tickwidth": 1},
-                "bar": {"color": "#4a90d9"},
-                "bgcolor": "white",
-                "borderwidth": 2,
-                "bordercolor": "gray",
-                "steps": [
-                    {"range": [0, 25], "color": "#ffcccc"},
-                    {"range": [25, 50], "color": "#ffffcc"},
-                    {"range": [50, 75], "color": "#ccffcc"},
-                    {"range": [75, 100], "color": "#99ff99"},
-                ],
-                "threshold": {
-                    "line": {"color": "red", "width": 2},
-                    "thickness": 0.75,
-                    "value": 50,
-                },
-            },
-            domain={"x": [0, 1], "y": [0, 1]},
-        )
-    )
-
-    # Always include baseline overlay trace for consistent Patch structure
-    baseline_val = baseline if baseline is not None else 0
-    baseline_color = "orange" if baseline is not None else "rgba(0,0,0,0)"
-    fig.add_trace(
-        go.Indicator(
-            mode="gauge",
-            value=0,
-            gauge={
-                "axis": {"range": [min_val, max_val], "visible": False},
-                "bar": {"color": "rgba(0,0,0,0)"},
-                "bgcolor": "rgba(0,0,0,0)",
-                "borderwidth": 0,
-                "steps": [],
-                "threshold": {
-                    "line": {"color": baseline_color, "width": 2},
-                    "thickness": 0.75,
-                    "value": baseline_val,
-                },
-            },
-            domain={"x": [0, 1], "y": [0, 1]},
-        )
-    )
-
-    fig.update_layout(
-        height=200,
-        margin=dict(l=30, r=30, t=50, b=30),
-        paper_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
-def scale_to_gauge(
+# ====================== Z-Score helper function =====================================
+def scale_to_z_score(
     value: float, mean: float, std: float, invert: bool = False
 ) -> float:
     """Convert a raw metric value to a 0-100 gauge score via z-score.
@@ -126,7 +58,7 @@ def create_bar_chart(
                 text=[f"{v:.2f}" for v in bar_values],
                 textposition="inside",
                 insidetextanchor="middle",
-                textfont=dict(size=14, color="white", family="Arial Black"),
+                textfont=dict(size=16, color="white", family="Arial Black"),
             )
         ]
     )
@@ -139,20 +71,20 @@ def create_bar_chart(
         line_width=2,
         annotation_text=f"Team Avg: {team_avg_val:.2f}",
         annotation_position="top right",
-        annotation_font_size=11,
+        annotation_font_size=12,
         annotation_font_color="#d9534f",
     )
 
     fig.update_layout(
         title=dict(text=title, x=0.5, xanchor="center", font=dict(size=13)),
-        height=280,
-        margin=dict(l=40, r=20, t=50, b=40),
-        yaxis=dict(title=unit, gridcolor="lightgray"),
+        height=160,
+        margin=dict(l=25, r=8, t=30, b=20),
+        yaxis=dict(title=unit, gridcolor="lightgray", tickfont=dict(size=10)),
         xaxis=dict(tickfont=dict(size=10)),
         showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        bargap=0.3,
+        bargap=0.2,
     )
     return fig
 
@@ -160,7 +92,105 @@ def create_bar_chart(
 _default_bar = create_bar_chart(0, 0, 0, 0, "—", "")
 _default_bars = {
     bar_id: create_bar_chart(0, 0, 0, 0, title, unit)
-    for bar_id, title, _col, unit in BAR_CONFIG
+    for bar_id, title, _col, unit in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+}
+
+
+# ====================== Z-Score Bar Chart Helper Function =================================
+def create_zscore_bar(
+    z_current: float | None,
+    z_baseline: float | None,
+    title: str,
+) -> go.Figure:
+    """Create a bar chart showing the current test z-score (0-100 scale)
+    with a baseline z-score as an orange horizontal line."""
+    bar_values = [z_current if z_current is not None else 0]
+    bar_labels = ["Current Test"]
+    bar_colors = ["#4a90d9"]
+
+    baseline_val = z_baseline if z_baseline is not None else 0
+
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                x=bar_labels,
+                y=bar_values,
+                marker_color=bar_colors,
+                text=[f"{v:.1f}" for v in bar_values],
+                textposition="inside",
+                insidetextanchor="middle",
+                textfont=dict(size=16, color="white", family="Arial Black"),
+                width=[0.4],
+            )
+        ]
+    )
+
+    # Baseline as an orange horizontal line
+    fig.add_hline(
+        y=baseline_val,
+        line_dash="dash",
+        line_color="#c07d20",
+        line_width=2,
+        annotation_text=f"Baseline: {baseline_val:.1f}",
+        annotation_position="top right",
+        annotation_font_size=12,
+        annotation_font_color="#c07d20",
+    )
+
+    # Team average z-score is always 50 (population mean = team mean)
+    fig.add_hline(
+        y=50,
+        line_dash="longdashdot",
+        line_color="#d9534f",
+        line_width=2,
+    )
+
+    fig.update_layout(
+        title=dict(text=title, x=0.5, xanchor="center", font=dict(size=12)),
+        height=160,
+        margin=dict(l=25, r=8, t=30, b=20),
+        yaxis=dict(title="Z-Score", gridcolor="lightgray", range=[0, 100], tickfont=dict(size=10)),
+        xaxis=dict(tickfont=dict(size=10), visible=False),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        bargap=0.2,
+    )
+
+    # Percentile reference bands (appended after hlines so shapes[0] and [1] stay intact)
+    # Percentile boundaries converted to 0-100 scale via z-scores
+    p2 = 15.8  # 2nd percentile  (z ≈ -2.05)
+    p15 = 32.7  # 15th percentile (z ≈ -1.04)
+    p85 = 67.3  # 85th percentile (z ≈  1.04)
+    p98 = 84.2  # 98th percentile (z ≈  2.05)
+
+    bands = [
+        (0, p2, "rgba(217,83,79,0.3)"),  # 0-2nd: red
+        (p2, p15, "rgba(255,235,59,0.3)"),  # 2-15th: yellow
+        (p15, p85, "rgba(144,238,144,0.3)"),  # 16-84th: green
+        (p85, p98, "rgba(60,179,113,0.35)"),  # 85-97th: darker green
+        (p98, 100, "rgba(34,120,60,0.4)"),  # 98-100th: dark green
+    ]
+    for y0, y1, color in bands:
+        fig.add_shape(
+            type="rect",
+            xref="paper",
+            x0=0,
+            x1=1,
+            yref="y",
+            y0=y0,
+            y1=y1,
+            fillcolor=color,
+            line_width=0,
+            layer="below",
+        )
+
+    return fig
+
+
+_default_zscore_bars = {
+    bar_id: create_zscore_bar(0, 0, title)
+    for bar_id, title, _col in OUTPUT_METRICS_CONFIG
 }
 
 
@@ -174,8 +204,8 @@ def create_diverging_chart(
     Shows baseline vs selected test for each metric, overlaid.
     If selected_data is empty, shows baseline only.
     """
-    labels = [title for _, title, _ in INJURY_CONFIG]
-    cols = [col for _, _, col in INJURY_CONFIG]
+    labels = [title for _, title, _ in FOOTBALL_INJURY_CONFIG]
+    cols = [col for _, _, col in FOOTBALL_INJURY_CONFIG]
 
     baseline_vals = [float(baseline_data.get(c) or 0) for c in cols]
 
@@ -193,7 +223,7 @@ def create_diverging_chart(
                 marker=dict(color="#f0ad4e", opacity=0.45),
                 text=[f"{v:.2f}" for v in baseline_vals],
                 textposition="auto",
-                textfont=dict(size=14),
+                textfont=dict(size=18),
             )
         )
         # Selected test trace (solid, on top) — color by severity
@@ -215,7 +245,7 @@ def create_diverging_chart(
                 marker_color=selected_colors,
                 text=[f"{v:.2f}" for v in selected_vals],
                 textposition="auto",
-                textfont=dict(size=14),
+                textfont=dict(size=18),
             )
         )
     else:
@@ -229,7 +259,7 @@ def create_diverging_chart(
                 marker_color="#f0ad4e",
                 text=[f"{v:.2f}" for v in baseline_vals],
                 textposition="auto",
-                textfont=dict(size=14),
+                textfont=dict(size=18),
             )
         )
 
@@ -241,9 +271,9 @@ def create_diverging_chart(
     x_range = max(max_abs * 1.3, 0.1)
 
     fig.update_layout(
-        title=dict(text="Asymmetry Analysis", x=0.5, xanchor="center"),
+        title=dict(text="Asymmetry Analysis", x=0.5, xanchor="center", font=dict(size=18)),
         barmode="group",
-        height=450,
+        height=360,
         xaxis=dict(
             range=[-x_range, x_range],
             zeroline=True,
@@ -251,14 +281,16 @@ def create_diverging_chart(
             zerolinecolor="black",
             gridcolor="lightgray",
             title="Asymmetry",
+            tickfont=dict(size=14),
         ),
-        yaxis=dict(autorange="reversed", tickfont=dict(size=14)),
+        yaxis=dict(autorange="reversed", tickfont=dict(size=16)),
         legend=dict(
-            orientation="h", x=0.5, xanchor="center", yanchor="bottom", y=-0.55
+            orientation="h", x=0.5, xanchor="center", yanchor="bottom", y=-0.35,
+            font=dict(size=14),
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=40, r=40, t=50, b=60),
+        margin=dict(l=30, r=30, t=40, b=50),
     )
     return fig
 
@@ -266,160 +298,36 @@ def create_diverging_chart(
 _default_diverging = create_diverging_chart({}, {})
 
 
-def create_trend_chart(dates, values, title: str) -> go.Figure:
-    """Create a scatter plot with highlighted baseline/current and a trend line.
-
-    dates: list of datetime.date objects (ascending)
-    values: list of float metric values
-    """
-    fig = go.Figure()
-
-    if not dates:
-        fig.update_layout(
-            title=dict(text=title, x=0.5, xanchor="center", font=dict(size=13)),
-            height=250,
-            margin=dict(l=40, r=20, t=50, b=40),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        return fig
-
-    n = len(dates)
-    # Last 5 tests *before* the current (most recent) one
-    last5_end = n - 1  # exclusive — stop before current
-    last5_start = max(0, last5_end - 5)
-
-    # Shaded band for last-5 test window (only if there are tests before current)
-    if last5_end > last5_start:
-        fig.add_vrect(
-            x0=dates[last5_start],
-            x1=dates[last5_end - 1],
-            fillcolor="#4a90d9",
-            opacity=0.08,
-            line_width=0,
-            annotation_text="Last 5",
-            annotation_position="top left",
-            annotation_font_size=9,
-            annotation_font_color="#4a90d9",
-        )
-
-    # All data points (regular markers)
-    fig.add_trace(
-        go.Scatter(
-            x=dates,
-            y=values,
-            mode="markers",
-            name="Tests",
-            marker=dict(color="#4a90d9", size=7),
-        )
-    )
-
-    # Baseline highlight (first point)
-    fig.add_trace(
-        go.Scatter(
-            x=[dates[0]],
-            y=[values[0]],
-            mode="markers+text",
-            name="Baseline",
-            marker=dict(
-                color="#f0ad4e",
-                size=13,
-                symbol="diamond",
-                line=dict(color="white", width=1.5),
-            ),
-            text=["Baseline"],
-            textposition="top center",
-            textfont=dict(size=9, color="#f0ad4e"),
-        )
-    )
-
-    # Most recent highlight (last point)
-    if n > 1:
-        fig.add_trace(
-            go.Scatter(
-                x=[dates[-1]],
-                y=[values[-1]],
-                mode="markers+text",
-                name="Current",
-                marker=dict(
-                    color="#5cb85c",
-                    size=13,
-                    symbol="star",
-                    line=dict(color="white", width=1.5),
-                ),
-                text=["Current"],
-                textposition="top center",
-                textfont=dict(size=9, color="#5cb85c"),
-            )
-        )
-
-    # Linear trend line (needs at least 2 points)
-    if n >= 2:
-        x_numeric = np.arange(n, dtype=float)
-        y_arr = np.array(values, dtype=float)
-        coeffs = np.polyfit(x_numeric, y_arr, 1)
-        trend_y = np.polyval(coeffs, x_numeric)
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=trend_y.tolist(),
-                mode="lines",
-                name="Trend",
-                line=dict(color="#d9534f", width=2, dash="dash"),
-            )
-        )
-
-    fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center", font=dict(size=13)),
-        height=250,
-        margin=dict(l=40, r=20, t=50, b=40),
-        xaxis=dict(tickformat="%m/%d/%Y", tickfont=dict(size=9)),
-        yaxis=dict(gridcolor="lightgray"),
-        showlegend=False,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
-_default_trend = create_trend_chart([], [], "—")
-
-
 # =============== Startup data ==================================
-dropdown_names = q.get_athlete_names()
-population_stats = q.get_population_stats(GAUGE_COLUMNS, "tests_cmjr")
-team_averages = q.get_team_average(BAR_COLUMNS, "tests_cmjr")
+dropdown_names = q.get_football_athlete_names()
+team_averages = q.get_team_average(
+    FOOTBALL_OUTPUT_METRICS + FOOTBALL_MOVEMENT_ANALYSIS_COLUMNS, "tests_cmj"
+)
+cmj_pop_stats = q.get_population_stats(FOOTBALL_OUTPUT_METRICS, "tests_cmj")
 
 # ====================== Styling ===================================
 CARD_STYLE = {
     "backgroundColor": "#e2efe2",
     "borderRadius": "12px",
-    "padding": "16px",
+    "padding": "10px",
     "boxShadow": "0 4px 10px rgba(0,0,0,0.08)",
-}
-
-GAUGE_CLUSTER_STYLE = {
-    "display": "flex",
-    "flexWrap": "wrap",
-    "justifyContent": "center",
-    "gap": "48px",
 }
 
 
 def serve_layout():
     """Returns the page layout"""
     return html.Div(
-        className="gauge-container",
+        className="card-container",
         style={
             "display": "grid",
             "gridTemplateColumns": "280px 1fr",
             "gridTemplateRows": "auto",
             "gridTemplateAreas": """
-                'profile gauges'
+                'profile metrics'
             """,
-            "gap": "16px",
-            "padding": "16px",
-            "minHeight": "100vh",
+            "gap": "10px",
+            "padding": "10px",
+            "minHeight": "auto",
             "boxSizing": "border-box",
         },
         children=[
@@ -443,9 +351,9 @@ def serve_layout():
                     html.P("Height: 5' 10''"),
                     html.P(id="athlete-weight", children="Weight: —"),
                     html.Hr(),
-                    html.P("Sport: Basketball"),
-                    html.P("Position: Guard"),
-                    html.P("Team: PCHS"),
+                    html.P("Sport: Football"),
+                    html.P("Position: OL"),
+                    html.P("Team: UPHS"),
                     html.P("Year: Sophomore"),
                     html.Hr(),
                     html.P("Test Date"),
@@ -474,67 +382,111 @@ def serve_layout():
                     html.P(id="total-tests-text", children="Total Tests Available: —"),
                 ],
             ),
-            # ====================== Performance Outputs (Gauge Clusters) ===================================
+            # ====================== Metric's Grid ===================================
             html.Div(
-                style={"gridArea": "gauges"},
+                style={"gridArea": "metrics"},
                 children=[
+                    # ==================== Performance Outputs ===================================
                     html.Div(
-                        style={**CARD_STYLE, "marginBottom": "16px"},
+                        style={**CARD_STYLE, "marginBottom": "8px"},
                         children=[
                             html.H3(
                                 "Performance Outputs",
                                 style={"textAlign": "center", "marginBottom": "8px"},
                             ),
+                            # Shared legend
                             html.Div(
-                                style=GAUGE_CLUSTER_STYLE,
+                                style={
+                                    "display": "flex",
+                                    "justifyContent": "center",
+                                    "gap": "24px",
+                                    "marginBottom": "12px",
+                                },
                                 children=[
                                     html.Div(
-                                        [
-                                            dcc.Graph(
-                                                id=f"gauge-{gauge_id}",
-                                                figure=create_gauge(50, title),
-                                                config={"displayModeBar": False},
-                                            ),
-                                            html.P(
-                                                _col,
+                                        style={
+                                            "display": "flex",
+                                            "alignItems": "center",
+                                            "gap": "6px",
+                                        },
+                                        children=[
+                                            html.Div(
                                                 style={
-                                                    "textAlign": "center",
-                                                    "fontSize": "12px",
-                                                    "margin": "0",
-                                                },
+                                                    "width": "14px",
+                                                    "height": "14px",
+                                                    "backgroundColor": "#4a90d9",
+                                                    "borderRadius": "2px",
+                                                }
                                             ),
-                                            html.P(
-                                                id=f"raw-{gauge_id}",
-                                                children="—",
-                                                style={
-                                                    "textAlign": "center",
-                                                    "fontSize": "16px",
-                                                    "margin": "0",
-                                                },
-                                            ),
-                                            html.P(
-                                                id=f"pct-diff-{gauge_id}",
-                                                children="",
-                                                style={
-                                                    "textAlign": "center",
-                                                    "fontSize": "14px",
-                                                    "margin": "4px auto 0",
-                                                    "padding": "2px 8px",
-                                                    "borderRadius": "4px",
-                                                    "display": "inline-block",
-                                                },
+                                            html.Span(
+                                                "Current Test",
+                                                style={"fontSize": "12px"},
                                             ),
                                         ],
-                                        style={"width": "200px", "textAlign": "center"},
+                                    ),
+                                    html.Div(
+                                        style={
+                                            "display": "flex",
+                                            "alignItems": "center",
+                                            "gap": "6px",
+                                        },
+                                        children=[
+                                            html.Div(
+                                                style={
+                                                    "width": "20px",
+                                                    "height": "0px",
+                                                    "borderTop": "2px dashed #c07d20",
+                                                }
+                                            ),
+                                            html.Span(
+                                                "Baseline", style={"fontSize": "12px"}
+                                            ),
+                                        ],
+                                    ),
+                                    html.Div(
+                                        style={
+                                            "display": "flex",
+                                            "alignItems": "center",
+                                            "gap": "6px",
+                                        },
+                                        children=[
+                                            html.Div(
+                                                style={
+                                                    "width": "20px",
+                                                    "height": "0px",
+                                                    "borderTop": "2px dashed #d9534f",
+                                                }
+                                            ),
+                                            html.Span(
+                                                "Team Avg", style={"fontSize": "12px"}
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            html.Div(
+                                style={
+                                    "display": "grid",
+                                    "gridTemplateColumns": "repeat(5, 1fr)",
+                                    "gap": "4px",
+                                },
+                                children=[
+                                    html.Div(
+                                        dcc.Graph(
+                                            id=f"zscore-bar-{bar_id}",
+                                            figure=_default_zscore_bars[bar_id],
+                                            config={"displayModeBar": False},
+                                        ),
+                                        style={"textAlign": "center"},
                                     )
-                                    for gauge_id, title, _col in GAUGE_CONFIG
+                                    for bar_id, _title, _col in OUTPUT_METRICS_CONFIG
                                 ],
                             ),
                         ],
                     ),
                     # ====================== Movement Analysis ===================================
                     html.Div(
-                        style={**CARD_STYLE, "marginBottom": "16px"},
+                        style={**CARD_STYLE, "marginBottom": "8px"},
                         children=[
                             html.H3(
                                 "Movement Analysis",
@@ -662,14 +614,14 @@ def serve_layout():
                                         ],
                                         style={"textAlign": "center"},
                                     )
-                                    for bar_id, _title, _col, _unit in BAR_CONFIG
+                                    for bar_id, _title, _col, _unit in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
                                 ],
                             ),
                         ],
                     ),
                     # ====================== Injury Risk Assesment ===================================
                     html.Div(
-                        style={**CARD_STYLE, "marginBottom": "16px"},
+                        style={**CARD_STYLE},
                         children=[
                             html.H3(
                                 "Injury Risk Assesment",
@@ -700,33 +652,6 @@ def serve_layout():
                             ),
                         ],
                     ),
-                    # ====================== Trends ===================================
-                    html.Div(
-                        style={**CARD_STYLE, "marginBottom": "16px"},
-                        children=[
-                            html.H3(
-                                "Trends",
-                                style={"textAlign": "center", "marginBottom": "8px"},
-                            ),
-                            html.Div(
-                                style={
-                                    "display": "grid",
-                                    "gridTemplateColumns": "repeat(3, 1fr)",
-                                    "gap": "8px",
-                                },
-                                children=[
-                                    html.Div(
-                                        dcc.Graph(
-                                            id=f"trend-{trend_id}",
-                                            figure=_default_trend,
-                                            config={"displayModeBar": False},
-                                        ),
-                                    )
-                                    for trend_id, _title, _col in TREND_CONFIG
-                                ],
-                            ),
-                        ],
-                    ),
                 ],
             ),
         ],
@@ -747,146 +672,100 @@ def update_date_dropdown(selected_name):
     """
     if not selected_name:
         return [], None, "Total Tests Available: —"
-    dates = q.get_test_dates(selected_name)
+    dates = q.get_cmj_test_dates(selected_name)
     default_value = dates[0]["value"] if dates else None
     return dates, default_value, f"Total Tests Available: {len(dates)}"
 
 
 @callback(
-    [Output(f"gauge-{gauge_id}", "figure") for gauge_id, _, _ in GAUGE_CONFIG]
-    + [Output(f"raw-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG]
-    + [Output(f"pct-diff-{gauge_id}", "children") for gauge_id, _, _ in GAUGE_CONFIG]
-    + [Output(f"pct-diff-{gauge_id}", "style") for gauge_id, _, _ in GAUGE_CONFIG],
+    [
+        Output(f"zscore-bar-{bar_id}", "figure")
+        for bar_id, _, _ in OUTPUT_METRICS_CONFIG
+    ],
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
-def update_gauges(selected_name, selected_date):
-    """Update all 5 gauge figures when athlete or date changes."""
-    default_figs = [create_gauge(50, title) for _, title, _ in GAUGE_CONFIG]
-    default_texts = ["—" for _ in GAUGE_CONFIG]
-    default_pct_texts = ["" for _ in GAUGE_CONFIG]
-    default_pct_styles = [{"display": "none"} for _ in GAUGE_CONFIG]
-
+def update_zscore_bars(selected_name, selected_date):
+    """Update Performance Output z-score bars when athlete or date changes."""
+    defaults = [_default_zscore_bars[bar_id] for bar_id, _, _ in OUTPUT_METRICS_CONFIG]
     if not selected_name or not selected_date:
-        return default_figs + default_texts + default_pct_texts + default_pct_styles
+        return defaults
 
-    test_data = q.get_test_data(selected_name, selected_date)
+    test_data = q.get_cmj_test_data(selected_name, selected_date)
+    baseline_data = q.get_cmj_baseline_data(selected_name)
     if not test_data:
-        return default_figs + default_texts + default_pct_texts + default_pct_styles
-
-    # Get baseline (earliest test) for this athlete — independent of selected date
-    baseline_data = q.get_baseline_data(selected_name)
+        return defaults
 
     figures = []
-    raw_texts = []
-    pct_texts = []
-    pct_styles = []
-    # Metrics where lower raw values are better (inverted z-score)
-    INVERT_GAUGE = set()
-
-    for _gauge_id, title, col in GAUGE_CONFIG:
-        stats = population_stats.get(col, {"mean": 0, "std": 1})
-        invert = col in INVERT_GAUGE
-
-        # Current test value
+    for bar_id, title, col in OUTPUT_METRICS_CONFIG:
         raw_value = test_data.get(col)
-        scaled = (
-            scale_to_gauge(float(raw_value), stats["mean"], stats["std"], invert=invert)
-            if raw_value is not None
-            else 50
-        )
+        raw_baseline = baseline_data.get(col) if baseline_data else None
+        stats = cmj_pop_stats.get(col, {})
+        mean = stats.get("mean")
+        std = stats.get("std")
 
-        # Baseline value (earliest test)
-        baseline_raw = baseline_data.get(col) if baseline_data else None
-        baseline_scaled = (
-            scale_to_gauge(
-                float(baseline_raw), stats["mean"], stats["std"], invert=invert
-            )
-            if baseline_raw is not None
-            else None
-        )
-
-        # Patch only the changed values instead of rebuilding the full figure
-        patched = Patch()
-        patched["data"][0]["value"] = scaled
-        patched["data"][1]["gauge"]["threshold"]["value"] = (
-            baseline_scaled if baseline_scaled is not None else 0
-        )
-        patched["data"][1]["gauge"]["threshold"]["line"]["color"] = (
-            "orange" if baseline_scaled is not None else "rgba(0,0,0,0)"
-        )
-        figures.append(patched)
-        raw_texts.append(f"{float(raw_value):.2f}" if raw_value is not None else "—")
-
-        # % difference: selected test vs baseline
-        if (
-            raw_value is not None
-            and baseline_raw is not None
-            and float(baseline_raw) != 0
-        ):
-            pct_signed = (
-                (float(raw_value) - float(baseline_raw)) / abs(float(baseline_raw))
-            ) * 100
-            pct_texts.append(f"{pct_signed:+.1f}%")
-
-            base_style = {
-                "textAlign": "center",
-                "fontSize": "14px",
-                "margin": "4px auto 0",
-                "padding": "2px 8px",
-                "borderRadius": "4px",
-                "display": "inline-block",
-                "fontWeight": "bold",
-            }
-
-            if pct_signed >= 5:
-                pct_styles.append(
-                    {**base_style, "backgroundColor": "#4a90d9", "color": "white"}
-                )
-            elif pct_signed <= -10:
-                pct_styles.append(
-                    {**base_style, "backgroundColor": "#d9534f", "color": "white"}
-                )
-            elif pct_signed <= -5:
-                pct_styles.append(
-                    {**base_style, "backgroundColor": "#f5e642", "color": "black"}
-                )
-            else:
-                # -4.99 to 4.99: no background
-                pct_styles.append({**base_style, "color": "#666"})
+        if raw_value is not None and mean is not None and std is not None:
+            z_current = scale_to_z_score(float(raw_value), mean, std)
         else:
-            pct_texts.append("")
-            pct_styles.append({"display": "none"})
+            z_current = 0
 
-    return figures + raw_texts + pct_texts + pct_styles
+        if raw_baseline is not None and mean is not None and std is not None:
+            z_baseline = scale_to_z_score(float(raw_baseline), mean, std)
+        else:
+            z_baseline = 0
+
+        patched = Patch()
+        patched["data"][0]["y"] = [z_current]
+        patched["data"][0]["text"] = [f"{z_current:.1f}"]
+        # Update baseline hline
+        patched["layout"]["shapes"][0]["y0"] = z_baseline
+        patched["layout"]["shapes"][0]["y1"] = z_baseline
+        patched["layout"]["annotations"][0]["text"] = f"Baseline: {z_baseline:.1f}"
+        figures.append(patched)
+
+    return figures
 
 
 @callback(
-    [Output(f"bar-{bar_id}", "figure") for bar_id, _, _, _ in BAR_CONFIG]
-    + [Output(f"bar-pct-diff-{bar_id}", "children") for bar_id, _, _, _ in BAR_CONFIG]
-    + [Output(f"bar-pct-diff-{bar_id}", "style") for bar_id, _, _, _ in BAR_CONFIG],
+    [
+        Output(f"bar-{bar_id}", "figure")
+        for bar_id, _, _, _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+    ]
+    + [
+        Output(f"bar-pct-diff-{bar_id}", "children")
+        for bar_id, _, _, _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+    ]
+    + [
+        Output(f"bar-pct-diff-{bar_id}", "style")
+        for bar_id, _, _, _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+    ],
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
 def update_bars(selected_name, selected_date):
     """Update all Movement Analysis bar charts when athlete or date changes."""
-    default_pct_texts = ["" for _ in BAR_CONFIG]
-    default_pct_styles = [{"display": "none"} for _ in BAR_CONFIG]
+    default_pct_texts = ["" for _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG]
+    default_pct_styles = [
+        {"display": "none"} for _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+    ]
 
     if not selected_name or not selected_date:
         return (
-            [_default_bars[bar_id] for bar_id, _, _, _ in BAR_CONFIG]
+            [
+                _default_bars[bar_id]
+                for bar_id, _, _, _ in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG
+            ]
             + default_pct_texts
             + default_pct_styles
         )
 
-    test_data = q.get_test_data(selected_name, selected_date)
-    athlete_avg = q.get_athlete_average(selected_name)
-    baseline_data = q.get_baseline_data(selected_name)
+    test_data = q.get_cmj_test_data(selected_name, selected_date)
+    athlete_avg = q.get_cmj_athlete_average(selected_name)
+    baseline_data = q.get_cmj_baseline_data(selected_name)
     figures = []
     pct_texts = []
     pct_styles = []
-    for _bar_id, title, col, unit in BAR_CONFIG:
+    for _bar_id, title, col, unit in FOOTBALL_MOVEMENT_ANALYSIS_CONFIG:
         athlete_value = float(test_data.get(col) or 0)
         avg_value = float(athlete_avg.get(col) or 0)
         team_value = float(team_averages.get(col) or 0)
@@ -908,7 +787,7 @@ def update_bars(selected_name, selected_date):
         # Invert for "lower is better" metrics
         raw_athlete = test_data.get(col)
         raw_baseline = baseline_data.get(col) if baseline_data else None
-        lower_is_better = col == "rebound_contact_time_ms"
+        lower_is_better = False
         if (
             raw_athlete is not None
             and raw_baseline is not None
@@ -962,17 +841,16 @@ def update_injury_chart(selected_name, selected_date):
     if not selected_name or not selected_date:
         return _default_diverging
 
-    baseline_data = q.get_cmjr_baseline_asymmetry(selected_name)
+    baseline_data = q.get_cmj_baseline_asymmetry(selected_name)
     if not baseline_data:
         return _default_diverging
 
-    selected_data = q.get_cmjr_date_asymmetry(selected_name, selected_date)
+    selected_data = q.get_cmj_date_asymmetry(selected_name, selected_date)
     return create_diverging_chart(baseline_data, selected_data)
 
 
 @callback(
     Output("injury-data-display", "children"),
-    Output("athlete-weight", "children"),
     Input("athlete-dropdown", "value"),
     Input("date-dropdown", "value"),
 )
@@ -983,28 +861,12 @@ def update_injury_data(selected_name, selected_date):
         html.P("Relative Peak Landing Force: —"),
     ]
     if not selected_name or not selected_date:
-        return default, "Weight: —"
+        return default
 
-    data = q.get_injury_data(selected_name, selected_date)
-    if not data:
-        return default, "Weight: —"
+    data = q.get_football_injury_data(selected_name, selected_date)
 
     tts = data.get("time_to_stabilization_ms")
     rplf = data.get("relative_peak_landing_force")
-    system_weight_n = data.get("system_weight_n")
-
-    # Convert system weight from Newtons to kg and lbs
-    weight_kg = float(system_weight_n) / 9.81 if system_weight_n is not None else None
-    weight_lbs = weight_kg * 2.20462 if weight_kg is not None else None
-
-    # Normalize peak landing force by body weight in kg
-    rplf_normalized = (
-        float(rplf) / weight_kg if rplf is not None and weight_kg else None
-    )
-
-    weight_text = (
-        f"Weight: {weight_lbs:.1f} lbs" if weight_lbs is not None else "Weight: —"
-    )
 
     return [
         html.P(
@@ -1013,46 +875,11 @@ def update_injury_data(selected_name, selected_date):
             else "Time to Stabilization: —"
         ),
         html.P(
-            f"Relative Peak Landing Force: {rplf_normalized:.2f}"
-            if rplf_normalized is not None
+            f"Relative Peak Landing Force: {rplf:.2f}"
+            if rplf is not None
             else "Relative Peak Landing Force: —"
         ),
-    ], weight_text
-
-
-@callback(
-    [Output(f"trend-{tid}", "figure") for tid, _, _ in TREND_CONFIG],
-    Input("athlete-dropdown", "value"),
-)
-def update_trends(selected_name):
-    """Update all Trend scatter plots when athlete changes."""
-    defaults = [_default_trend for _ in TREND_CONFIG]
-    if not selected_name:
-        return defaults
-
-    trend_rows = q.get_trend_data(selected_name)
-    if not trend_rows:
-        return defaults
-
-    # Filter to: baseline (first), last 5 before current, and current (last)
-    all_dates = [row["test_date"] for row in trend_rows]
-    n = len(all_dates)
-
-    if n <= 7:
-        # 7 or fewer tests — keep all (baseline + up to 5 middle + current)
-        filtered_rows = trend_rows
-    else:
-        # baseline (index 0) + last 5 before current (indices -6 to -2) + current (-1)
-        filtered_rows = [trend_rows[0]] + trend_rows[-6:-1] + [trend_rows[-1]]
-
-    dates = [row["test_date"] for row in filtered_rows]
-
-    figures = []
-    for _tid, title, col in TREND_CONFIG:
-        values = [float(row.get(col) or 0) for row in filtered_rows]
-        figures.append(create_trend_chart(dates, values, title))
-
-    return figures
+    ]
 
 
 # ====================== Standalone App (for testing) ===================================
